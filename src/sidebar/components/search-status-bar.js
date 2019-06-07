@@ -38,6 +38,14 @@ function SearchStatusBarController(store, rootThread) {
     return Object.keys(selection).length > 0;
   };
 
+  this.searchQuery = function() {
+    return store.getState().filterQuery;
+  };
+
+  this.filterActive = function() {
+    return !!store.getState().filterQuery;
+  };
+
   this.onClearSelection = function() {
     let selectedTab = store.getState().selectedTab;
     if (
@@ -58,8 +66,6 @@ module.exports = {
   controller: SearchStatusBarController,
   controllerAs: 'vm',
   bindings: {
-    filterActive: '<',
-    searchQuery: '<',
     selectedTab: '<',
     totalAnnotations: '<',
     totalNotes: '<',

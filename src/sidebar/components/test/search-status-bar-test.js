@@ -32,6 +32,39 @@ describe('searchStatusBar', () => {
     });
   });
 
+  describe('searchQuery', () => {
+    ['tag:foo', null].forEach(filterQuery => {
+      it('returns the `filterQuery`', () => {
+        fakeStore.getState.returns({ filterQuery });
+
+        const elem = util.createDirective(document, 'searchStatusBar', {});
+        const ctrl = elem.ctrl;
+
+        assert.equal(ctrl.searchQuery(), filterQuery);
+      });
+    });
+  });
+
+  describe('filterActive', () => {
+    it('returns true if there is a `filterQuery`', () => {
+      fakeStore.getState.returns({ filterQuery: 'tag:foo' });
+
+      const elem = util.createDirective(document, 'searchStatusBar', {});
+      const ctrl = elem.ctrl;
+
+      assert.isTrue(ctrl.filterActive());
+    });
+
+    it('returns false if there `filterQuery` is null', () => {
+      fakeStore.getState.returns({ filterQuery: null });
+
+      const elem = util.createDirective(document, 'searchStatusBar', {});
+      const ctrl = elem.ctrl;
+
+      assert.isFalse(ctrl.filterActive());
+    });
+  });
+
   describe('filterMatchCount', () => {
     it('returns the total number of visible annotations or replies', () => {
       fakeRootThread.thread.returns({
@@ -48,10 +81,11 @@ describe('searchStatusBar', () => {
           },
         ],
       });
-
-      const elem = util.createDirective(document, 'searchStatusBar', {
-        filterActive: true,
+      fakeStore.getState.returns({
+        filterQuery: 'tag:foo',
       });
+
+      const elem = util.createDirective(document, 'searchStatusBar', {});
       const ctrl = elem.ctrl;
 
       assert.equal(ctrl.filterMatchCount(), 2);
@@ -174,9 +208,11 @@ describe('searchStatusBar', () => {
         ],
       });
 
-      const elem = util.createDirective(document, 'searchStatusBar', {
-        filterActive: true,
+      fakeStore.getState.returns({
+        filterQuery: 'tag:foo',
       });
+
+      const elem = util.createDirective(document, 'searchStatusBar', {});
       assert.include(elem[0].textContent, '2 search results');
     });
   });
