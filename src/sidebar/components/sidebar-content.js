@@ -3,9 +3,7 @@
 const SearchClient = require('../search-client');
 const events = require('../events');
 const isThirdPartyService = require('../util/is-third-party-service');
-const memoize = require('../util/memoize');
 const tabs = require('../tabs');
-const uiConstants = require('../ui-constants');
 
 /**
  * Returns the group ID of the first annotation in `results` whose
@@ -279,17 +277,6 @@ function SidebarContentController(
   this.focus = focusAnnotation;
   this.scrollTo = scrollToAnnotation;
 
-  this.areAllAnnotationsVisible = function() {
-    if (store.getState().directLinkedGroupFetchFailed) {
-      return true;
-    }
-    const selection = store.getState().selectedAnnotationMap;
-    if (!selection) {
-      return false;
-    }
-    return Object.keys(selection).length > 0;
-  };
-
   this.selectedGroupUnavailable = function() {
     return !this.isLoading() && store.getState().directLinkedGroupFetchFailed;
   };
@@ -326,38 +313,6 @@ function SidebarContentController(
     return (
       !this.isLoading() && !!selectedID && store.annotationExists(selectedID)
     );
-  };
-
-  const visibleCount = memoize(function(thread) {
-    return thread.children.reduce(
-      function(count, child) {
-        return count + visibleCount(child);
-      },
-      thread.visible ? 1 : 0
-    );
-  });
-
-  this.visibleCount = function() {
-    return visibleCount(thread());
-  };
-
-  this.topLevelThreadCount = function() {
-    return thread().totalChildren;
-  };
-
-  this.clearSelection = function() {
-    let selectedTab = store.getState().selectedTab;
-    if (
-      !store.getState().selectedTab ||
-      store.getState().selectedTab === uiConstants.TAB_ORPHANS
-    ) {
-      selectedTab = uiConstants.TAB_ANNOTATIONS;
-    }
-
-    store.clearSelectedAnnotations();
-    store.selectTab(selectedTab);
-    store.clearDirectLinkedGroupFetchFailed();
-    store.clearDirectLinkedIds();
   };
 }
 
