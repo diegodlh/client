@@ -142,6 +142,10 @@ export default class OAuthClient {
     return this._formPost(this.revokeEndpoint, { token: accessToken });
   }
 
+  logout($window) {
+    $window.open('http://localhost:5000/logout')
+  }
+
   /**
    * Prompt the user for permission to access their data.
    *

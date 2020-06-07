@@ -258,7 +258,7 @@ export default function auth(
    */
   function login() {
     const authWindow =
-      settings.appType !== 'firefox-extension'
+      settings.appType !== 'null'
         ? OAuthClient.openAuthPopupWindow($window)
         : null;
     return oauthClient()
@@ -279,11 +279,16 @@ export default function auth(
    * This revokes and then forgets any OAuth credentials that the user has.
    */
   async function logout() {
+    oauthClient()
+      .then(client => {
+        client.logout($window);
+      });
     const [token, client] = await Promise.all([
       tokenInfoPromise,
       oauthClient(),
     ]);
     await client.revokeToken(token.accessToken);
+    // await fetch('http://localhost:5000/logout');
 
     // eslint-disable-next-line require-atomic-updates
     tokenInfoPromise = Promise.resolve(null);
