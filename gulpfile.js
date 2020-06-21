@@ -215,6 +215,12 @@ gulp.task(
   })
 );
 
+gulp.task('build-redirects', function() {
+  return gulp
+    .src('src/netlify/_redirects')
+    .pipe(gulp.dest('build'))
+});
+
 const MANIFEST_SOURCE_FILES =
   'build/@(fonts|images|scripts|styles)/*.@(js|css|woff|jpg|png|svg)';
 
@@ -306,7 +312,8 @@ const buildAssets = gulp.parallel(
   'build-js',
   'build-css',
   'build-fonts',
-  'build-images'
+  'build-images',
+  'build-redirects'
 );
 gulp.task('build', gulp.series(buildAssets, generateManifest));
 
