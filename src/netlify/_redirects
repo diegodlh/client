@@ -1,2 +1,0 @@
-# Netlify redirects
-/build/*	/:splat		200

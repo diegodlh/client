@@ -215,12 +215,6 @@ gulp.task(
   })
 );
 
-gulp.task('build-redirects', function() {
-  return gulp
-    .src('src/netlify/_redirects')
-    .pipe(gulp.dest('build'))
-});
-
 const MANIFEST_SOURCE_FILES =
   'build/@(fonts|images|scripts|styles)/*.@(js|css|woff|jpg|png|svg)';
 
@@ -243,11 +237,11 @@ function generateBootScript(manifest, { usingDevServer = false } = {}) {
   let defaultAssetRoot;
 
   if (process.env.NODE_ENV === 'production' && !usingDevServer) {
-    defaultAssetRoot = 'https://client.anotacionweb.com';
+    defaultAssetRoot = 'https://cdn.hypothes.is/hypothesis';
   } else {
     defaultAssetRoot = '{current_scheme}://{current_host}:3001/hypothesis';
   }
-  defaultAssetRoot = `${defaultAssetRoot}/`;
+  defaultAssetRoot = `${defaultAssetRoot}/${version}/`;
 
   if (isFirstBuild) {
     log(`Sidebar app URL: ${defaultSidebarAppUrl}`);
@@ -312,8 +306,7 @@ const buildAssets = gulp.parallel(
   'build-js',
   'build-css',
   'build-fonts',
-  'build-images',
-  'build-redirects'
+  'build-images'
 );
 gulp.task('build', gulp.series(buildAssets, generateManifest));
 
