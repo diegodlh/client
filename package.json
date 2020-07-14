@@ -1,11 +1,11 @@
 {
-  "name": "hypothesis",
+  "name": "unofficial-hypothesis",
   "version": "1.0.0-dummy-version",
-  "description": "Annotate with anyone, anywhere.",
+  "description": "Unofficial client to annotate the web using Hypothesis.",
   "license": "BSD-2-Clause",
-  "homepage": "https://hypothes.is",
-  "bugs": "https://github.com/hypothesis/client/issues",
-  "repository": "hypothesis/client",
+  "homepage": "https://github.com/diegodlh/unofficial-hypothesis-client",
+  "bugs": "https://github.com/diegodlh/unofficial-hypothesis-client/issues",
+  "repository": "diegodlh/unofficial-hypothesis-client",
   "devDependencies": {
     "@babel/core": "^7.1.6",
     "@babel/preset-env": "^7.1.6",
