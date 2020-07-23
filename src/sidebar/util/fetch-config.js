@@ -178,6 +178,36 @@ async function fetchGroupsAsync(config, rpcCall) {
 }
 
 /**
+ * Merge client configuration from h service with config from the browser extension.
+ *
+ * @param {Object} appConfig - App config settings rendered into `app.html` by the h service.
+ * @return {Object} - The merged settings.
+ */
+async function fetchConfigExtension(appConfig) {
+
+  function get() {
+    return new Promise(resolve => {
+      chrome.storage.sync.get(
+        {
+        },
+        items => resolve(items)
+      );
+    });
+  }
+
+  if (appConfig.appType === 'firefox-extension') {
+    const extConfig = await get();
+
+    return {
+      ...appConfig,
+      ...extConfig,
+    };
+  } else {
+    return appConfig;
+  }
+}
+
+/**
  * Fetch the host configuration and merge it with the app configuration from h.
  *
  * There are 3 ways to get the host config:
@@ -190,19 +220,20 @@ async function fetchGroupsAsync(config, rpcCall) {
  * @return {Promise<MergedConfig>} - The merged settings.
  */
 export async function fetchConfig(appConfig, window_ = window) {
+  const appExtConfig = await fetchConfigExtension(appConfig);
   const hostPageConfig = hostConfig(window);
 
   const requestConfigFromFrame = hostPageConfig.requestConfigFromFrame;
 
   if (!requestConfigFromFrame) {
     // Directly embed: just get the config.
-    return fetchConfigEmbed(appConfig, hostPageConfig);
+    return fetchConfigEmbed(appExtConfig, hostPageConfig);
   }
   if (typeof requestConfigFromFrame === 'string') {
     // Legacy: send RPC to all parents to find config. (deprecated)
     // nb. Browsers may display errors in the console when messages are sent to frames
     // that don't match the origin filter".
-    return await fetchConfigLegacy(appConfig, window_);
+    return await fetchConfigLegacy(appExtConfig, window_);
   } else if (
     typeof requestConfigFromFrame.ancestorLevel === 'number' &&
     typeof requestConfigFromFrame.origin === 'string'
@@ -213,7 +244,7 @@ export async function fetchConfig(appConfig, window_ = window) {
       window_
     );
     return await fetchConfigRpc(
-      appConfig,
+      appExtConfig,
       parentFrame,
       requestConfigFromFrame.origin
     );
