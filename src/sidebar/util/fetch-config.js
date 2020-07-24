@@ -189,6 +189,7 @@ async function fetchConfigExtension(appConfig) {
     return new Promise(resolve => {
       chrome.storage.sync.get(
         {
+          openSidebar: false,
         },
         items => resolve(items)
       );
