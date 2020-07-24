@@ -181,7 +181,7 @@ async function fetchGroupsAsync(config, rpcCall) {
  * Merge client configuration from h service with config from the browser extension.
  *
  * @param {Object} appConfig - App config settings rendered into `app.html` by the h service.
- * @return {Object} - The merged settings.
+ * @return {Promise<Object>} - The merged settings.
  */
 async function fetchConfigExtension(appConfig) {
 
