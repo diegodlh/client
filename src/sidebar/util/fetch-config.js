@@ -190,6 +190,7 @@ async function fetchConfigExtension(appConfig) {
       chrome.storage.sync.get(
         {
           enableExperimentalNewNoteButton: false,
+          openSidebar: false,
         },
         items => resolve(items)
       );
