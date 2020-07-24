@@ -31,6 +31,7 @@ function SidebarContent({
 
   // Store state values
   const focusedGroupId = useStore(store => store.focusedGroupId());
+  const focusedGroup = useStore(store => store.focusedGroup());
   const hasAppliedFilter = useStore(store => store.hasAppliedFilter());
   const isFocusedMode = useStore(store => store.focusModeEnabled());
   const isLoading = useStore(store => store.isLoading());
@@ -104,6 +105,12 @@ function SidebarContent({
     userId,
     searchUris,
   ]);
+
+  // When an annotation group is focused, send its name to the annotator
+  // component for display in the adder toolbar footer.
+  useEffect(() => {
+    frameSync.setAnnotationGroup(focusedGroup ? focusedGroup.name : null);
+  }, [focusedGroup])
 
   // When a `linkedAnnotationAnchorTag` becomes available, scroll to it
   // and focus it

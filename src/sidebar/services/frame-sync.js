@@ -255,4 +255,18 @@ export default function FrameSync(annotationsService, bridge, store, settings) {
   this.scrollToAnnotation = function (tag) {
     bridge.call('scrollToAnnotation', tag);
   };
+
+  /**
+   * Provide the frame with the name of the currently selected/focused annotation
+   * group.
+   *
+   * @param {string} groupName
+   */
+  this.setAnnotationGroup = function (groupName) {
+    bridge.call('setAnnotationGroup',
+      settings.adderToolbarFooter
+      ? groupName
+      : null
+    );
+  }
 }

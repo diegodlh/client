@@ -117,6 +117,13 @@ export class Adder {
      */
     this.annotationsForSelection = [];
 
+    /**
+     * Name of the annotation group currently selected.
+     *
+     * @type {string}
+     */
+    this.groupName = options.groupName;
+
     this._render();
   }
 
@@ -237,6 +244,7 @@ export class Adder {
         arrowDirection={this._arrowDirection}
         onCommand={handleCommand}
         annotationCount={this.annotationsForSelection.length}
+        groupName={this.groupName}
       />,
       this._shadowRoot
     );

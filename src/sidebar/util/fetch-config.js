@@ -191,6 +191,7 @@ async function fetchConfigExtension(appConfig) {
         {
           enableExperimentalNewNoteButton: false,
           openSidebar: false,
+          adderToolbarFooter: false,
         },
         items => resolve(items)
       );
