@@ -62,6 +62,8 @@ ToolbarButton.propTypes = {
  *   Number of annotations associated with the selected text.
  *   If non-zero, a "Show" button is displayed to allow the user to see the
  *   annotations that correspond to the selection.
+ * @prop {string | null} [groupName] -
+ *   Currently focused group name for display on the adder toolbar footer.
  */
 
 /**
@@ -75,6 +77,7 @@ export default function AdderToolbar({
   isVisible,
   onCommand,
   annotationCount = 0,
+  groupName
 }) {
   const handleCommand = (event, command) => {
     event.preventDefault();
@@ -129,6 +132,15 @@ export default function AdderToolbar({
         )}
         {/* @ts-ignore */}
       </hypothesis-adder-actions>
+      {groupName && (
+        /* @ts-ignore */
+        <hypothesis-adder-footer class="annotator-adder-footer">
+          <span class="annotator-adder-footer__label">
+            {groupName}
+          </span>
+          {/* @ts-ignore */}
+        </hypothesis-adder-footer>
+      )}
       {/* @ts-ignore */}
     </hypothesis-adder-toolbar>
   );
@@ -139,4 +151,5 @@ AdderToolbar.propTypes = {
   isVisible: propTypes.bool.isRequired,
   onCommand: propTypes.func.isRequired,
   annotationCount: propTypes.number,
+  groupName: propTypes.string,
 };
