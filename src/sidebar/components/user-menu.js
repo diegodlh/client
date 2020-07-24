@@ -63,6 +63,14 @@ function UserMenu({ auth, bridge, onLogout, serviceUrl, settings }) {
               href={serviceUrl('account.settings')}
             />
           )}
+          {settings.appType === 'firefox-extension' && (
+            <MenuItem
+              label="Extension settings"
+              onClick={() => chrome.runtime.sendMessage(
+                {type: 'openOptionsPage'}
+              )}
+            />
+          )}
         </MenuSection>
         {isLogoutEnabled && (
           <MenuSection>
