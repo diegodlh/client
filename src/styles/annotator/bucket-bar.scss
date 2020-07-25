@@ -15,9 +15,10 @@
   }
 
   .annotator-bucket-indicator {
-    transition: background-color .25s .25s;
+    /*transition: background-color .25s .25s;*/
     box-sizing: border-box;
-    background: var.$toolbar-button-background;
+    background: var.$white;
+    /*background: var.$toolbar-button-background;*/
     border: solid 1px var.$grey-3;
     border-radius: 2px 4px 4px 2px;
     right: 0;
@@ -68,11 +69,11 @@
       margin-top: -7px;
     }
 
-    &:focus,
+/*    &:focus,
     &:hover {
       background-color: var.$white;
     }
-
+*/
     &.lower,
     &.upper {
       @include utils.shadow;
