@@ -27,6 +27,7 @@ export class ToolbarController {
     this._container.className = 'annotator-toolbar';
 
     this._useMinimalControls = false;
+    this._transparentButtons = false;
     this._newAnnotationType = 'note';
     this._highlightsVisible = false;
     this._sidebarOpen = false;
@@ -61,6 +62,18 @@ export class ToolbarController {
 
   get useMinimalControls() {
     return this._useMinimalControls;
+  }
+
+  /**
+   * Set whether the toolbar buttons are rendered transparent.
+   */
+  set transparentButtons(transparent) {
+    this._transparentButtons = transparent;
+    this.render();
+  }
+
+  get transparentButtons() {
+    return this._transparentButtons;
   }
 
   /**
@@ -122,6 +135,7 @@ export class ToolbarController {
         toggleSidebar={this._toggleSidebar}
         toggleSidebarRef={this._sidebarToggleButton}
         useMinimalControls={this.useMinimalControls}
+        transparentButtons={this.transparentButtons}
       />,
       this._container
     );

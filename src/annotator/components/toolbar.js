@@ -81,6 +81,8 @@ ToolbarButton.propTypes = {
  * @prop {boolean} [useMinimalControls] -
  *   If true, all controls are hidden except for the "Close sidebar" button
  *   when the sidebar is open.
+ * @prop {boolean} [transparentButtons] -
+ *   If true, all control buttons are rendered transparent.
  */
 
 /**
@@ -99,12 +101,15 @@ export default function Toolbar({
   toggleSidebar,
   toggleSidebarRef,
   useMinimalControls = false,
+  transparentButtons = false,
 }) {
   return (
     <div>
       {useMinimalControls && isSidebarOpen && (
         <ToolbarButton
-          extraClasses="annotator-frame-button--sidebar_close"
+          extraClasses={"annotator-frame-button--sidebar_close"
+            + (transparentButtons ? " annotator-frame-button--transparent" : "")
+          }
           label="Close annotation sidebar"
           icon="cancel"
           onClick={closeSidebar}
@@ -112,7 +117,9 @@ export default function Toolbar({
       )}
       {!useMinimalControls && (
         <ToolbarButton
-          extraClasses="annotator-frame-button--sidebar_toggle"
+          extraClasses={"annotator-frame-button--sidebar_toggle"
+            + (transparentButtons ? " annotator-frame-button--transparent" : "")
+          }
           buttonRef={toggleSidebarRef}
           label="Annotation sidebar"
           icon={isSidebarOpen ? 'caret-right' : 'caret-left'}
@@ -122,6 +129,7 @@ export default function Toolbar({
       )}
       {!useMinimalControls && (
         <ToolbarButton
+          extraClasses={transparentButtons ? "annotator-frame-button--transparent" : ""}
           label="Show highlights"
           icon={showHighlights ? 'show' : 'hide'}
           selected={showHighlights}
@@ -130,6 +138,7 @@ export default function Toolbar({
       )}
       {!useMinimalControls && (
         <ToolbarButton
+          extraClasses={transparentButtons ? "annotator-frame-button--transparent" : ""}
           label={
             newAnnotationType === 'note' ? 'New page note' : 'New annotation'
           }
@@ -151,4 +160,5 @@ Toolbar.propTypes = {
   toggleSidebar: propTypes.func.isRequired,
   toggleSidebarRef: propTypes.any,
   useMinimalControls: propTypes.bool,
+  transparentButtons: propTypes.bool,
 };
