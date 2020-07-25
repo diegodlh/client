@@ -209,6 +209,10 @@ export default function FrameSync(annotationsService, bridge, store, settings) {
       if (settings.openSidebar) {
         channel.call('showSidebar');
       }
+
+      if (settings.transparentToolbarButtons) {
+        channel.call('useTransparentToolbarButtons');
+      }
     });
   }
 

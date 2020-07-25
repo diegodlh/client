@@ -81,7 +81,7 @@ $sidebar-collapse-transition-time: 150ms;
   .annotator-frame-button {
     @include focus.outline-on-keyboard-focus;
 
-    transition: background-color 0.25s;
+    transition: background-color .25s .25s, color .25s .25s;
     @include utils.shadow;
     background: var.$white;
     border: solid 1px var.$grey-3;
@@ -93,14 +93,19 @@ $sidebar-collapse-transition-time: 150ms;
     padding: 1px 6px;
     margin-bottom: 5px;
 
+    &:focus,
+    &:hover {
+      background-color: var.$white;
+      color: var.$grey-7;
+    }
+
     &:active {
       background-color: var.$grey-semi;
     }
+  }
 
-    &:focus,
-    &:hover {
-      color: var.$grey-7;
-    }
+  .annotator-frame-button--transparent {
+    background: var.$toolbar-button-background;
   }
 
   .annotator-frame-button--sidebar_toggle {
