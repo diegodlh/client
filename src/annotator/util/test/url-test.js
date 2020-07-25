@@ -1,6 +1,4 @@
-'use strict';
-
-const { normalizeURI } = require('../url');
+import { normalizeURI } from '../url';
 
 describe('annotator.util.url', () => {
   describe('normalizeURI', () => {

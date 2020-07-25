@@ -1,21 +1,19 @@
-'use strict';
-
 /* global process */
 
 /**
  * This module provides dependency injection of services into React
  * components via React's "context" API [1].
  *
- * It is initially being used to enable React components to depend on Angular
- * services/values without having to plumb the services through the tree of
- * components.
- *
  * [1] See https://reactjs.org/docs/context.html#api and
  *     https://reactjs.org/docs/hooks-reference.html#usecontext
  */
 
-const { useContext } = require('preact/hooks');
-const { createContext, createElement } = require('preact');
+/**
+ * @typedef {import("redux").Store} Store
+ */
+
+import { createContext, createElement } from 'preact';
+import { useContext } from 'preact/hooks';
 
 const fallbackInjector = {
   get(service) {
@@ -34,7 +32,7 @@ const fallbackInjector = {
  * Consumers will either use this directly via `useContext` or use the
  * `withServices` wrapper.
  */
-const ServiceContext = createContext(fallbackInjector);
+export const ServiceContext = createContext(fallbackInjector);
 
 /**
  * Wrap a React component to inject any services it depends upon as props.
@@ -54,9 +52,9 @@ const ServiceContext = createContext(fallbackInjector);
  *   MyComponent.injectedProps = ['settings']
  *
  *   // Wrap `MyComponent` to inject any services it needs.
- *   module.exports = withServices(MyComponent);
+ *   export default withServices(MyComponent);
  */
-function withServices(Component) {
+export function withServices(Component) {
   if (!Component.injectedProps) {
     // This component doesn't depend on any services, so there is no need
     // to wrap it.
@@ -66,7 +64,7 @@ function withServices(Component) {
   function Wrapper(props) {
     // Get the current dependency injector instance that is provided by a
     // `ServiceContext.Provider` somewhere higher up the component tree.
-    const $injector = useContext(ServiceContext);
+    const injector = useContext(ServiceContext);
 
     // Inject services, unless they have been overridden by props passed from
     // the parent component.
@@ -82,7 +80,7 @@ function withServices(Component) {
       }
 
       if (!(service in props)) {
-        services[service] = $injector.get(service);
+        services[service] = injector.get(service);
       }
     }
     return <Component {...services} {...props} />;
@@ -109,14 +107,9 @@ function withServices(Component) {
  * context of custom hooks.
  *
  * @param {string} service - Name of the service to look up
+ * @return {Object}
  */
-function useService(service) {
+export function useService(service) {
   const injector = useContext(ServiceContext);
   return injector.get(service);
 }
-
-module.exports = {
-  ServiceContext,
-  withServices,
-  useService,
-};

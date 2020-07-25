@@ -1,451 +1,271 @@
-'use strict';
+import { mount } from 'enzyme';
+import { createElement } from 'preact';
+import { act } from 'preact/test-utils';
 
-const angular = require('angular');
-const immutable = require('seamless-immutable');
+import GroupList from '../group-list';
+import { $imports } from '../group-list';
 
-const { events } = require('../../services/analytics');
-const groupList = require('../group-list');
-const util = require('../../directive/test/util');
+import mockImportedComponents from '../../../test-util/mock-imported-components';
 
-const groupFixtures = require('../../test/group-fixtures');
-
-describe('groupList', function() {
-  let $window;
-
-  const privateGroup = immutable({
-    id: 'private',
-    links: {
-      html: 'https://hypothes.is/groups/hdevs',
-    },
-    name: 'Private',
-    organization: groupFixtures.defaultOrganization(),
-    type: 'private',
-    isScopedToUri: true,
-  });
-
-  const restrictedGroup = immutable({
-    id: 'restricted',
-    links: {
-      html: 'https://hypothes.is/groups/restricto',
-    },
-    name: 'Restricted',
-    organization: groupFixtures.defaultOrganization(),
-    type: 'restricted',
-    isScopedToUri: true,
-  });
-
-  const publicGroup = immutable({
-    id: '__world__',
-    links: {
-      html: 'https://hypothes.is/groups/__world__/public',
-    },
-    name: 'Public',
-    organization: groupFixtures.defaultOrganization(),
-    type: 'open',
-    isScopedToUri: true,
-  });
-
-  let groups;
-  let fakeGroups;
-  let fakeAnalytics;
+describe('GroupList', () => {
+  let fakeServiceConfig;
   let fakeServiceUrl;
   let fakeSettings;
-  let fakeFeatures;
+  let fakeStore;
+  let testGroup;
 
-  before(function() {
-    angular
-      .module('app', [])
-      .component('groupList', groupList)
-      .factory('groups', function() {
-        return fakeGroups;
-      });
-  });
+  function createGroupList() {
+    return mount(
+      <GroupList serviceUrl={fakeServiceUrl} settings={fakeSettings} />
+    );
+  }
 
-  beforeEach(function() {
-    fakeFeatures = {
-      flagEnabled: sinon.stub().returns(false),
-    };
+  /**
+   * Configure the store to populate all of the group sections.
+   * Must be called before group list is rendered.
+   */
+  function populateGroupSections() {
+    const testGroups = [
+      {
+        ...testGroup,
+        id: 'zzz',
+      },
+      {
+        ...testGroup,
+        id: 'aaa',
+      },
+    ];
+    fakeStore.getMyGroups.returns(testGroups);
+    fakeStore.getCurrentlyViewingGroups.returns(testGroups);
+    fakeStore.getFeaturedGroups.returns(testGroups);
+    return testGroups;
+  }
 
-    fakeAnalytics = {
-      track: sinon.stub(),
-      events,
+  beforeEach(() => {
+    testGroup = {
+      id: 'testgroup',
+      name: 'Test group',
+      organization: { id: 'testorg', name: 'Test Org' },
     };
 
     fakeServiceUrl = sinon.stub();
     fakeSettings = {
-      authDomain: 'example.com',
+      authDomain: 'hypothes.is',
     };
-
-    angular.mock.module('app', {
-      analytics: fakeAnalytics,
-      serviceUrl: fakeServiceUrl,
-      settings: fakeSettings,
-      features: fakeFeatures,
-    });
-  });
-
-  beforeEach(
-    angular.mock.inject(function(_$window_) {
-      $window = _$window_;
-
-      groups = [publicGroup, privateGroup, restrictedGroup];
-
-      fakeGroups = {
-        all: function() {
-          return groups;
-        },
-        get: function(id) {
-          const match = this.all().filter(function(group) {
-            return group.id === id;
-          });
-          return match.length > 0 ? match[0] : undefined;
-        },
-        leave: sinon.stub(),
-        focus: sinon.stub(),
-        focused: sinon.stub(),
-      };
-    })
-  );
-
-  function createGroupList({ userid } = { userid: 'acct:person@example.com' }) {
-    return util.createDirective(document, 'groupList', {
-      auth: {
-        status: userid ? 'logged-in' : 'logged-out',
-        userid,
-      },
-    });
-  }
-
-  it('should render groups', function() {
-    const element = createGroupList();
-    const groupItems = element.find('.group-item');
-    assert.equal(groupItems.length, groups.length + 1);
-  });
-
-  it('should render appropriate group name link title per group type', function() {
-    const element = createGroupList();
-    const nameLinks = element.find('.group-name-link');
-    assert.equal(nameLinks.length, groups.length + 1);
-
-    assert.include(nameLinks[0].title, 'Show public annotations'); // Open
-    assert.include(nameLinks[1].title, 'Show and create annotations in'); // Private
-    assert.include(nameLinks[2].title, 'Show public annotations'); // Restricted
-  });
-
-  it('should render organization logo for focused group', function() {
-    const org = groupFixtures.organization({
-      logo: 'http://www.example.com/foobar',
-    });
-    const group = groupFixtures.expandedGroup({
-      organization: org,
-    });
-    fakeGroups.focused = () => {
-      return group;
+    fakeStore = {
+      getCurrentlyViewingGroups: sinon.stub().returns([]),
+      getFeaturedGroups: sinon.stub().returns([]),
+      getMyGroups: sinon.stub().returns([]),
+      focusedGroup: sinon.stub().returns(testGroup),
+      profile: sinon.stub().returns({ userid: null }),
     };
+    fakeServiceConfig = sinon.stub().returns(null);
 
-    const element = createGroupList();
-    const imgEl = element.find('.dropdown-toggle > img.group-list-label__icon');
-
-    assert.equal(imgEl[0].src, org.logo);
-  });
-
-  it('should render fallback icon for focused group when no logo (private)', function() {
-    const org = groupFixtures.organization({ logo: null });
-    const group = groupFixtures.expandedGroup({
-      organization: org,
-      type: 'private',
+    $imports.$mock(mockImportedComponents());
+    $imports.$mock({
+      '../store/use-store': callback => callback(fakeStore),
+      '../service-config': fakeServiceConfig,
     });
-    fakeGroups.focused = () => {
-      return group;
-    };
-
-    const element = createGroupList();
-    const iconEl = element.find('.dropdown-toggle > i.h-icon-group');
-
-    assert.ok(iconEl[0]);
   });
 
-  it('should render fallback icon for focused group when no logo (restricted)', function() {
-    const org = groupFixtures.organization({ logo: null });
-    const group = groupFixtures.expandedGroup({
-      organization: org,
-      type: 'restricted',
+  afterEach(() => {
+    $imports.$restore();
+  });
+
+  it('displays descriptive menu title about which group is currently selected', () => {
+    const wrapper = createGroupList();
+    const menu = wrapper.find('Menu');
+
+    assert.equal(menu.props().title, 'Select group (now viewing: Test group)');
+  });
+
+  it('adds descriptive label text if no currently-focused group', () => {
+    fakeStore.focusedGroup.returns(undefined);
+    const wrapper = createGroupList();
+    const menu = wrapper.find('Menu');
+
+    assert.equal(menu.props().title, 'Select group');
+  });
+
+  it('displays no sections if there are no groups', () => {
+    const wrapper = createGroupList();
+    assert.isFalse(wrapper.exists('GroupListSection'));
+  });
+
+  it('displays "Currently Viewing" section if there are currently viewing groups', () => {
+    fakeStore.getCurrentlyViewingGroups.returns([testGroup]);
+    const wrapper = createGroupList();
+    assert.isTrue(
+      wrapper.exists('GroupListSection[heading="Currently Viewing"]')
+    );
+  });
+
+  it('displays "Featured Groups" section if there are featured groups', () => {
+    fakeStore.getFeaturedGroups.returns([testGroup]);
+    const wrapper = createGroupList();
+    assert.isTrue(
+      wrapper.exists('GroupListSection[heading="Featured Groups"]')
+    );
+  });
+
+  it('displays "My Groups" section if user is a member of any groups', () => {
+    fakeStore.getMyGroups.returns([testGroup]);
+    const wrapper = createGroupList();
+    assert.isTrue(wrapper.exists('GroupListSection[heading="My Groups"]'));
+  });
+
+  it('sorts groups within each section by organization', () => {
+    const testGroups = populateGroupSections();
+    const fakeGroupOrganizations = groups =>
+      groups.sort((a, b) => a.id.localeCompare(b.id));
+    $imports.$mock({
+      '../util/group-organizations': fakeGroupOrganizations,
     });
-    fakeGroups.focused = () => {
-      return group;
-    };
 
-    const element = createGroupList();
-    const iconEl = element.find('.dropdown-toggle > i.h-icon-public');
+    const wrapper = createGroupList();
+    const sections = wrapper.find('GroupListSection');
 
-    assert.ok(iconEl[0]);
-  });
-
-  it('should render fallback icon for focused group when no logo (open)', function() {
-    const org = groupFixtures.organization({ logo: null });
-    const group = groupFixtures.expandedGroup({
-      organization: org,
-      type: 'open',
+    assert.equal(sections.length, 3);
+    sections.forEach(section => {
+      assert.deepEqual(
+        section.prop('groups'),
+        fakeGroupOrganizations(testGroups)
+      );
     });
-    fakeGroups.focused = () => {
-      return group;
-    };
-
-    const element = createGroupList();
-    const iconEl = element.find('.dropdown-toggle > i.h-icon-public');
-
-    assert.ok(iconEl[0]);
-  });
-
-  it('should render organization icons for first group in each organization', function() {
-    const orgs = [
-      groupFixtures.defaultOrganization(),
-      groupFixtures.organization(),
-    ];
-    groups = [
-      groupFixtures.expandedGroup({ organization: orgs[0] }),
-      groupFixtures.expandedGroup({ organization: orgs[0] }),
-      groupFixtures.expandedGroup({ organization: orgs[1] }),
-      groupFixtures.expandedGroup({ organization: orgs[1] }),
-    ];
-
-    const element = createGroupList();
-    const iconContainers = element.find('.group-menu-icon-container');
-    const iconImages = element.find('.group-menu-icon-container > img');
-
-    assert.lengthOf(iconContainers, groups.length);
-    assert.lengthOf(iconImages, orgs.length);
-  });
-
-  it('should not render organization icons for menu groups if missing', function() {
-    const orgs = [
-      groupFixtures.organization({ logo: null }),
-      groupFixtures.organization({ logo: null }),
-    ];
-    groups = [
-      groupFixtures.expandedGroup({ organization: orgs[0] }),
-      groupFixtures.expandedGroup({ organization: orgs[0] }),
-      groupFixtures.expandedGroup({ organization: orgs[1] }),
-      groupFixtures.expandedGroup({ organization: orgs[1] }),
-    ];
-
-    const element = createGroupList();
-    const iconContainers = element.find('.group-menu-icon-container');
-    const iconImages = element.find('.group-menu-icon-container > img');
-
-    assert.lengthOf(iconContainers, groups.length);
-    assert.lengthOf(iconImages, 0);
-  });
-
-  it('should render share links', function() {
-    const element = createGroupList();
-    const shareLinks = element.find('.share-link-container');
-    assert.equal(shareLinks.length, groups.length);
-
-    const link = element.find('.share-link');
-    assert.equal(link.length, groups.length);
-
-    assert.equal(link[0].href, publicGroup.links.html);
-    assert.equal(link[1].href, privateGroup.links.html);
-    assert.equal(link[2].href, restrictedGroup.links.html);
-  });
-
-  it('should not render share links if they are not present', function() {
-    groups = [
-      {
-        type: 'private',
-      },
-      {
-        id: 'anOpenGroup',
-        type: 'open',
-        links: {},
-      },
-    ];
-    const element = createGroupList();
-    const links = element.find('.share-link-container');
-    assert.equal(links.length, 0);
   });
 
   [
     {
-      // Logged-in third party user.
-      firstPartyAuthDomain: 'example.com',
-      authDomain: 'publisher.org',
-      userid: 'acct:person@publisher.org',
+      userid: null,
+      expectNewGroupButton: false,
     },
     {
-      // Logged-out third party user.
-      firstPartyAuthDomain: 'example.com',
-      authDomain: 'publisher.org',
-      userid: null,
+      userid: 'acct:john@hypothes.is',
+      expectNewGroupButton: true,
     },
-  ].forEach(({ firstPartyAuthDomain, authDomain, userid }) => {
-    it('should not render share links for third-party groups', () => {
-      fakeSettings.authDomain = firstPartyAuthDomain;
-      fakeSettings.services = [
-        {
-          authority: authDomain,
-        },
-      ];
-
-      const element = createGroupList({ userid });
-      const shareLinks = element.find('.share-link-container');
-
-      assert.equal(shareLinks.length, 0);
+    {
+      userid: 'acct:john@otherpublisher.org',
+      expectNewGroupButton: false,
+    },
+  ].forEach(({ userid, expectNewGroupButton }) => {
+    it('displays "New private group" button if user is logged in with first-party account', () => {
+      fakeStore.profile.returns({ userid });
+      const wrapper = createGroupList();
+      const newGroupButton = wrapper.find(
+        'MenuItem[label="New private group"]'
+      );
+      assert.equal(newGroupButton.length, expectNewGroupButton ? 1 : 0);
     });
   });
 
-  it('should track metrics when a user attempts to view a groups activity', function() {
-    const element = createGroupList();
-    const link = element.find('.share-link');
-    link.click();
-    assert.calledWith(
-      fakeAnalytics.track,
-      fakeAnalytics.events.GROUP_VIEW_ACTIVITY
-    );
-  });
-
-  function clickLeaveIcon(element, acceptPrompt) {
-    const leaveLink = element.find('.h-icon-cancel-outline');
-
-    // accept prompt to leave group
-    $window.confirm = function() {
-      return acceptPrompt;
-    };
-    leaveLink.click();
-  }
-
-  it('should leave group when the leave icon is clicked', function() {
-    const element = createGroupList();
-    clickLeaveIcon(element, true);
-    assert.ok(fakeGroups.leave.calledWith(privateGroup.id));
-    assert.calledWith(fakeAnalytics.track, fakeAnalytics.events.GROUP_LEAVE);
-  });
-
-  it('should not leave group when confirmation is dismissed', function() {
-    const element = createGroupList();
-    clickLeaveIcon(element, false);
-    assert.notCalled(fakeGroups.leave);
-    assert.notCalled(fakeAnalytics.track);
-  });
-
-  it('should not change the focused group when leaving', function() {
-    const element = createGroupList();
-    clickLeaveIcon(element, true);
-    assert.notCalled(fakeGroups.focus);
-    assert.calledWith(fakeAnalytics.track, fakeAnalytics.events.GROUP_LEAVE);
-  });
-
-  it('should change current group focus when click another group', function() {
-    const element = createGroupList();
-    const groupItems = element.find('.group-item');
-
-    // click the second group
-    groupItems[1].click();
-
-    assert.calledOnce(fakeGroups.focus);
-    assert.calledWith(fakeAnalytics.track, fakeAnalytics.events.GROUP_SWITCH);
-  });
-
-  it('should open a window when "New Group" is clicked', function() {
+  it('opens new window at correct URL when "New private group" is clicked', () => {
     fakeServiceUrl
       .withArgs('groups.new')
-      .returns('https://test.hypothes.is/groups/new');
-
-    const element = createGroupList();
-    $window.open = sinon.stub();
-
-    const newGroupLink = element[0].querySelector('.new-group-btn a');
-    angular.element(newGroupLink).click();
-    assert.calledWith(
-      $window.open,
-      'https://test.hypothes.is/groups/new',
-      '_blank'
-    );
+      .returns('https://example.com/groups/new');
+    fakeStore.profile.returns({ userid: 'jsmith@hypothes.is' });
+    const wrapper = createGroupList();
+    const newGroupButton = wrapper.find('MenuItem[label="New private group"]');
+    assert.equal(newGroupButton.props().href, 'https://example.com/groups/new');
   });
 
-  describe('group menu visibility', () => {
-    it('is hidden when third party service and only one group', function() {
-      // Configure third party service.
-      fakeSettings.authDomain = 'example.com';
-      fakeSettings.services = [
-        {
-          authority: 'publisher.org',
-        },
-      ];
-
-      // Configure only one group.
-      groups = [privateGroup];
-
-      const element = createGroupList();
-
-      const showGroupsMenu = element.ctrl.showGroupsMenu();
-      const dropdownToggle = element.find('.dropdown-toggle');
-      const arrowIcon = element.find('.h-icon-arrow-drop-down');
-      const dropdownMenu = element.find('.dropdown-menu__top-arrow');
-      const dropdownOptions = element.find('.dropdown-menu__row');
-
-      assert.isFalse(showGroupsMenu);
-      assert.lengthOf(dropdownToggle, 0);
-      assert.lengthOf(arrowIcon, 0);
-      assert.lengthOf(dropdownMenu, 0);
-      assert.lengthOf(dropdownOptions, 0);
+  context('when `isThirdPartyService` is true', () => {
+    beforeEach(() => {
+      $imports.$mock({
+        '../util/is-third-party-service': () => true,
+      });
     });
 
-    it('is shown when there is more than one group', function() {
-      // Configure third party service.
-      fakeSettings.authDomain = 'example.com';
-      fakeSettings.services = [
-        {
-          authority: 'publisher.org',
-        },
-      ];
-
-      const element = createGroupList();
-
-      const showGroupsMenu = element.ctrl.showGroupsMenu();
-      const dropdownToggle = element.find('.dropdown-toggle');
-      const arrowIcon = element.find('.h-icon-arrow-drop-down');
-      const dropdownMenu = element.find('.dropdown-menu__top-arrow');
-      const dropdownOptions = element.find('.dropdown-menu__row');
-
-      assert.isTrue(showGroupsMenu);
-      assert.lengthOf(dropdownToggle, 1);
-      assert.lengthOf(arrowIcon, 1);
-      assert.lengthOf(dropdownMenu, 1);
-      assert.lengthOf(dropdownOptions, 4);
+    it('displays the group name and icon as static text if there is only one group and no actions available', () => {
+      const wrapper = createGroupList();
+      assert.equal(wrapper.text(), 'Test group');
     });
 
-    it('is shown when it is not a third party service', function() {
-      // Configure only one group.
-      groups = [privateGroup];
+    it('uses the organization name for the `alt` attribute', () => {
+      fakeServiceConfig.returns({ icon: 'test-icon' });
+      const wrapper = createGroupList();
+      assert.equal(wrapper.find('img').prop('alt'), 'Test Org');
+    });
 
-      const element = createGroupList();
-
-      const showGroupsMenu = element.ctrl.showGroupsMenu();
-      const dropdownToggle = element.find('.dropdown-toggle');
-      const arrowIcon = element.find('.h-icon-arrow-drop-down');
-      const dropdownMenu = element.find('.dropdown-menu__top-arrow');
-      const dropdownOptions = element.find('.dropdown-menu__row');
-
-      assert.isTrue(showGroupsMenu);
-      assert.lengthOf(dropdownToggle, 1);
-      assert.lengthOf(arrowIcon, 1);
-      assert.lengthOf(dropdownMenu, 1);
-      assert.lengthOf(dropdownOptions, 2);
+    it('uses a blank string for the `alt` attribute if the organization name is missing', () => {
+      fakeServiceConfig.returns({ icon: 'test-icon' });
+      testGroup.organization = {};
+      const wrapper = createGroupList();
+      assert.equal(wrapper.find('img').prop('alt'), '');
     });
   });
 
-  [false, true].forEach(isEnabled => {
-    it('returns what features.flagEnabled returns', function() {
-      fakeFeatures.flagEnabled.withArgs('community_groups').returns(isEnabled);
+  it('renders a placeholder if groups have not loaded yet', () => {
+    fakeStore.focusedGroup.returns(null);
+    const wrapper = createGroupList();
+    const label = wrapper.find('Menu').prop('label');
+    assert.equal(mount(label).text(), '…');
+  });
 
-      const element = createGroupList();
+  it('renders the publisher-provided icon in the toggle button', () => {
+    fakeServiceConfig.returns({ icon: 'test-icon' });
+    const wrapper = createGroupList();
+    const label = wrapper.find('Menu').prop('label');
+    const img = mount(label).find('img');
+    assert.equal(img.prop('src'), 'test-icon');
+  });
 
-      const communityGroupsEnabled = element.ctrl.isFeatureFlagEnabled(
-        'community_groups'
+  it('does not render an icon if the the publisher-provided icon is missing', () => {
+    const wrapper = createGroupList();
+    const label = wrapper.find('Menu').prop('label');
+    assert.isFalse(mount(label).find('img').exists());
+  });
+
+  /**
+   * Assert that the submenu for a particular group is expanded (or none is
+   * if `group` is `null`).
+   */
+  const verifyGroupIsExpanded = (wrapper, group) =>
+    wrapper.find('GroupListSection').forEach(section => {
+      assert.equal(section.prop('expandedGroup'), group);
+    });
+
+  it("sets or resets expanded group item when a group's submenu toggle is clicked", () => {
+    const testGroups = populateGroupSections();
+
+    // Render group list. Initially no submenu should be expanded.
+    const wrapper = createGroupList();
+    verifyGroupIsExpanded(wrapper, null);
+
+    // Expand a group in one of the sections.
+    act(() => {
+      wrapper.find('GroupListSection').first().prop('onExpandGroup')(
+        testGroups[0]
       );
-      assert.isTrue(communityGroupsEnabled === isEnabled);
     });
+    wrapper.update();
+    verifyGroupIsExpanded(wrapper, testGroups[0]);
+
+    // Reset expanded group.
+    act(() => {
+      wrapper.find('GroupListSection').first().prop('onExpandGroup')(null);
+    });
+    wrapper.update();
+    verifyGroupIsExpanded(wrapper, null);
+  });
+
+  it('resets expanded group when menu is closed', () => {
+    const testGroups = populateGroupSections();
+    const wrapper = createGroupList();
+
+    // Expand one of the submenus.
+    act(() => {
+      wrapper.find('GroupListSection').first().prop('onExpandGroup')(
+        testGroups[0]
+      );
+    });
+    wrapper.update();
+    verifyGroupIsExpanded(wrapper, testGroups[0]);
+
+    // Close the menu
+    act(() => {
+      wrapper.find('Menu').prop('onOpenChanged')(false);
+    });
+    wrapper.update();
+    verifyGroupIsExpanded(wrapper, null);
   });
 });

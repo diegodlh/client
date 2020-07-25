@@ -1,4 +1,32 @@
-'use strict';
+import warnOnce from '../shared/warn-once';
+
+// Array to keep track of pre-start requests
+let preStartQueue = [];
+
+/**
+ * Return the mapped methods that can be called remotely via this server.
+ *
+ * @param {Object} store - The global store
+ * @return {Object}
+ */
+const registeredMethods = store => {
+  return {
+    changeFocusModeUser: store.changeFocusModeUser,
+  };
+};
+
+/**
+ * Return true if `data` "looks like" a JSON-RPC message.
+ *
+ * @param {any} data
+ */
+function isJsonRpcMessage(data) {
+  // eslint-disable-next-line eqeqeq
+  if (data == null || typeof data !== 'object') {
+    return false;
+  }
+  return data.jsonrpc === '2.0';
+}
 
 /**
  * Begin responding to JSON-RPC requests from frames on other origins.
@@ -15,17 +43,36 @@
  * http://www.jsonrpc.org/specification
  *
  * The only part that we support so far is receiving JSON-RPC 2.0 requests (not
- * notifications) without any parameters and sending back a successful
- * response. Notifications (JSON-RPC calls that don't require a response),
- * method parameters, and error responses are not yet supported.
+ * notifications) and sending back a successful "ok" response.
  *
+ * All methods called upon must be mapped in the `registeredMethods` function.
  */
 // @ngInject
-function start(store, settings, $window) {
-  $window.addEventListener('message', function receiveMessage(event) {
+export function startServer(store, settings, $window) {
+  const methods = registeredMethods(store);
+
+  // Process the pre-start incoming RPC requests
+  preStartQueue.forEach(event => {
+    receiveMessage(event);
+  });
+  // Clear the queue and remove the preStartMessageListener
+  preStartQueue = [];
+  window.removeEventListener('message', preStartMessageListener);
+
+  // Start listening to new RPC requests
+  $window.addEventListener('message', receiveMessage);
+
+  function receiveMessage(event) {
     let allowedOrigins = settings.rpcAllowedOrigins || [];
 
+    if (!isJsonRpcMessage(event.data)) {
+      return;
+    }
+
     if (!allowedOrigins.includes(event.origin)) {
+      warnOnce(
+        `Ignoring JSON-RPC request from non-whitelisted origin ${event.origin}`
+      );
       return;
     }
 
@@ -34,37 +81,53 @@ function start(store, settings, $window) {
     let jsonRpcRequest = event.data;
 
     event.source.postMessage(jsonRpcResponse(jsonRpcRequest), event.origin);
-  });
+  }
 
   /** Return a JSON-RPC response to the given JSON-RPC request object. */
   function jsonRpcResponse(request) {
-    // The set of methods that clients can call.
-    let methods = {
-      searchUris: store.searchUris,
-    };
+    const method = methods[request.method];
 
-    let method = methods[request.method];
-
-    let response = {
-      jsonrpc: '2.0',
-      id: request.id,
-    };
-
-    if (method) {
-      response.result = method();
-    } else {
-      response.error = {
-        code: -32601,
-        message: 'Method not found',
+    // Return an error response if the method name is not registered with
+    // registeredMethods.
+    if (method === undefined) {
+      return {
+        jsonrpc: '2.0',
+        id: request.id,
+        error: { code: -32601, message: 'Method not found' },
       };
     }
 
-    return response;
+    // Call the method and return the result response.
+    if (request.params) {
+      method(...request.params);
+    } else {
+      method();
+    }
+    return { jsonrpc: '2.0', result: 'ok', id: request.id };
   }
 }
 
-module.exports = {
-  server: {
-    start: start,
-  },
-};
+/**
+ * Queues all incoming RPC requests so they can be handled later.
+ *
+ * @param {MessageEvent} event - RPC event payload
+ */
+function preStartMessageListener(event) {
+  preStartQueue.push(event);
+}
+
+/**
+ * Start listening to incoming RPC requests right away so they don't timeout. These
+ * requests are saved until the server starts up and then they can be handled accordingly.
+ *
+ * Why?
+ *
+ * This allows the client to fetch its config from the parent app frame and potentially
+ * receive new unsolicited incoming requests that the parent app may send before this
+ * RPC server starts.
+ *
+ * @param {Window} window_ - Test seam
+ */
+export function preStartServer(window_ = window) {
+  window_.addEventListener('message', preStartMessageListener);
+}

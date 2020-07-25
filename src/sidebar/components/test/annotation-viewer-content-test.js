@@ -1,157 +1,136 @@
-'use strict';
+import { createElement } from 'preact';
+import { mount } from 'enzyme';
 
-const angular = require('angular');
+import { waitFor } from '../../../test-util/wait';
+import mockImportedComponents from '../../../test-util/mock-imported-components';
 
-// Fake implementation of the API for fetching annotations and replies to
-// annotations.
-function FakeApi(annots) {
-  this.annots = annots;
+import AnnotationViewerContent, {
+  $imports,
+} from '../annotation-viewer-content';
 
-  this.annotation = {
-    get: function(query) {
-      let result;
-      if (query.id) {
-        result = annots.find(function(a) {
-          return a.id === query.id;
-        });
-      }
-      return Promise.resolve(result);
-    },
-  };
+describe('AnnotationViewerContent', () => {
+  let fakeStore;
+  let fakeOnLogin;
+  let fakeRootThread;
+  let fakeLoadAnnotationsService;
 
-  this.search = function(query) {
-    let result;
-    if (query.references) {
-      result = annots.filter(function(a) {
-        return a.references && a.references.indexOf(query.references) !== -1;
-      });
-    }
-    return Promise.resolve({ rows: result });
-  };
-}
-
-describe('annotationViewerContent', function() {
-  before(function() {
-    angular
-      .module('h', [])
-      .component(
-        'annotationViewerContent',
-        require('../annotation-viewer-content')
-      );
-  });
-
-  beforeEach(angular.mock.module('h'));
-
-  function createController(opts) {
-    const locals = {
-      $location: {},
-      $routeParams: { id: 'test_annotation_id' },
-      store: {
-        setAppIsSidebar: sinon.stub(),
-        setCollapsed: sinon.stub(),
-        highlightAnnotations: sinon.stub(),
-        subscribe: sinon.stub(),
-      },
-      api: opts.api,
-      rootThread: { thread: sinon.stub() },
-      streamer: {
-        setConfig: function() {},
-        connect: function() {},
-      },
-      streamFilter: {
-        addClause: function() {
-          return {
-            addClause: function() {},
-          };
-        },
-        getFilter: function() {},
-      },
-      annotationMapper: {
-        loadAnnotations: sinon.spy(),
-      },
+  beforeEach(() => {
+    fakeStore = {
+      clearAnnotations: sinon.stub(),
+      getState: sinon.stub().returns({}),
+      highlightAnnotations: sinon.stub(),
+      routeParams: sinon.stub().returns({ id: 'test_annotation_id' }),
+      profile: sinon.stub().returns({ userid: null }),
+      setCollapsed: sinon.stub(),
     };
 
-    let $componentController;
-    angular.mock.inject(function(_$componentController_) {
-      $componentController = _$componentController_;
-    });
-    locals.ctrl = $componentController('annotationViewerContent', locals, {
-      search: {},
-    });
-    return locals;
-  }
+    fakeLoadAnnotationsService = {
+      loadThread: sinon.stub().resolves([]),
+    };
 
-  describe('the standalone view for a top-level annotation', function() {
-    it('loads the annotation and all replies', function() {
-      const fakeApi = new FakeApi([
-        { id: 'test_annotation_id' },
-        { id: 'test_reply_id', references: ['test_annotation_id'] },
-      ]);
-      const controller = createController({ api: fakeApi });
-      return controller.ctrl.ready.then(function() {
-        assert.calledOnce(controller.annotationMapper.loadAnnotations);
-        assert.calledWith(
-          controller.annotationMapper.loadAnnotations,
-          sinon.match(fakeApi.annots)
-        );
-      });
-    });
+    fakeOnLogin = sinon.stub();
 
-    it('does not highlight any annotations', function() {
-      const fakeApi = new FakeApi([
-        { id: 'test_annotation_id' },
-        { id: 'test_reply_id', references: ['test_annotation_id'] },
-      ]);
-      const controller = createController({ api: fakeApi });
-      return controller.ctrl.ready.then(function() {
-        assert.notCalled(controller.store.highlightAnnotations);
-      });
+    fakeRootThread = { thread: sinon.stub().returns({}) };
+
+    $imports.$mock(mockImportedComponents());
+    $imports.$mock({
+      '../store/use-store': callback => callback(fakeStore),
     });
   });
 
-  describe('the standalone view for a reply', function() {
-    it('loads the top-level annotation and all replies', function() {
-      const fakeApi = new FakeApi([
-        { id: 'parent_id' },
-        { id: 'test_annotation_id', references: ['parent_id'] },
-      ]);
-      const controller = createController({ api: fakeApi });
-      return controller.ctrl.ready.then(function() {
-        assert.calledWith(
-          controller.annotationMapper.loadAnnotations,
-          sinon.match(fakeApi.annots)
-        );
+  afterEach(() => {
+    $imports.$restore();
+  });
+
+  function createComponent(props = {}) {
+    return mount(
+      <AnnotationViewerContent
+        loadAnnotationsService={fakeLoadAnnotationsService}
+        onLogin={fakeOnLogin}
+        rootThread={fakeRootThread}
+        {...props}
+      />
+    );
+  }
+
+  describe('the standalone view for a top-level annotation', () => {
+    it('loads the annotation thread', () => {
+      createComponent();
+
+      assert.calledOnce(fakeLoadAnnotationsService.loadThread);
+    });
+
+    context('successfully-loaded annotation thread', () => {
+      beforeEach(() => {
+        fakeLoadAnnotationsService.loadThread.resolves([
+          { id: 'test_annotation_id' },
+          { id: 'test_reply_id', references: ['test_annotation_id'] },
+        ]);
+      });
+
+      it('does not highlight any annotations', async () => {
+        createComponent();
+
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        assert.notCalled(fakeStore.highlightAnnotations);
+      });
+
+      it('expands the thread', async () => {
+        createComponent();
+
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        assert.calledWith(fakeStore.setCollapsed, 'test_annotation_id', false);
+        assert.calledWith(fakeStore.setCollapsed, 'test_reply_id', false);
       });
     });
 
-    it('expands the thread', function() {
-      const fakeApi = new FakeApi([
-        { id: 'parent_id' },
-        { id: 'test_annotation_id', references: ['parent_id'] },
-      ]);
-      const controller = createController({ api: fakeApi });
-      return controller.ctrl.ready.then(function() {
-        assert.calledWith(controller.store.setCollapsed, 'parent_id', false);
-        assert.calledWith(
-          controller.store.setCollapsed,
-          'test_annotation_id',
-          false
-        );
+    it('shows an error if the annotation could not be fetched', async () => {
+      fakeLoadAnnotationsService.loadThread.rejects();
+      const onLogin = sinon.stub();
+      const wrapper = createComponent({ onLogin });
+
+      // Initially the annotation is not available to the user, so an error
+      // should be shown.
+      await waitFor(() => {
+        wrapper.update();
+        return wrapper.exists('SidebarContentError');
       });
+
+      // Simulate clicking the "Login" button in the error.
+      const onLoginRequest = wrapper
+        .find('SidebarContentError')
+        .prop('onLoginRequest');
+      onLoginRequest();
+      assert.called(onLogin);
+
+      fakeLoadAnnotationsService.loadThread.resetHistory();
+      fakeLoadAnnotationsService.loadThread.resolves([
+        { id: 'test_annotation_id' },
+      ]);
+      fakeStore.profile.returns({ userid: 'acct:jimsmith@hypothes.is' });
+
+      // Force re-render. `useStore` would do this in the actual app.
+      wrapper.setProps({});
+
+      await waitFor(() => fakeLoadAnnotationsService.loadThread.called);
+      assert.isFalse(wrapper.exists('SidebarContentError'));
     });
 
-    it('highlights the reply', function() {
-      const fakeApi = new FakeApi([
+    it('highlights the annotation if it is a reply', async () => {
+      fakeLoadAnnotationsService.loadThread.resolves([
         { id: 'parent_id' },
         { id: 'test_annotation_id', references: ['parent_id'] },
       ]);
-      const controller = createController({ api: fakeApi });
-      return controller.ctrl.ready.then(function() {
-        assert.calledWith(
-          controller.store.highlightAnnotations,
-          sinon.match(['test_annotation_id'])
-        );
-      });
+
+      createComponent();
+
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.calledWith(
+        fakeStore.highlightAnnotations,
+        sinon.match(['test_annotation_id'])
+      );
     });
   });
 });

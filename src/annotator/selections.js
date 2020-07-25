@@ -1,6 +1,4 @@
-'use strict';
-
-const observable = require('./util/observable');
+import * as observable from './util/observable';
 
 /** Returns the selected `DOMRange` in `document`. */
 function selectedRange(document) {
@@ -23,13 +21,13 @@ function selectedRange(document) {
  *
  * @return Observable<DOMRange|null>
  */
-function selections(document) {
+export default function selections(document) {
   // Get a stream of selection changes that occur whilst the user is not
   // making a selection with the mouse.
   let isMouseDown;
   const selectionEvents = observable
     .listen(document, ['mousedown', 'mouseup', 'selectionchange'])
-    .filter(function(event) {
+    .filter(function (event) {
       if (event.type === 'mousedown' || event.type === 'mouseup') {
         isMouseDown = event.type === 'mousedown';
         return false;
@@ -52,9 +50,7 @@ function selections(document) {
     observable.delay(0, observable.Observable.of({})),
   ]);
 
-  return events.map(function() {
+  return events.map(function () {
     return selectedRange(document);
   });
 }
-
-module.exports = selections;

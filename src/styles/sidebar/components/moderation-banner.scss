@@ -1,14 +1,14 @@
+@use "../../variables" as var;
+@use "../../mixins/layout";
+
 @at-root {
   // Horizontal margin between edge of annotation card and content
   $h-padding: 15px;
 
   .moderation-banner {
+    @include layout.row;
     position: relative;
-
     color: white;
-    display: flex;
-    flex-direction: row;
-    font-size: $normal-font-size;
     font-weight: bold;
   }
 
@@ -46,10 +46,10 @@
   }
 
   .moderation-banner.is-flagged:not(.is-hidden) {
-    background-color: $brand;
+    background-color: var.$color-brand;
   }
 
   .moderation-banner.is-hidden {
-    background-color: $grey-6;
+    background-color: var.$grey-6;
   }
 }

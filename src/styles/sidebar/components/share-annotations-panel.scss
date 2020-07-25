@@ -1,0 +1,22 @@
+@use "../../variables" as var;
+@use "../../mixins/buttons";
+@use "../../mixins/forms";
+@use "../../mixins/molecules";
+@use "../../mixins/utils";
+
+.share-annotations-panel {
+  color: var.$color-text--light;
+
+  &__intro {
+    color: var.$color-text;
+    font-weight: 500;
+  }
+
+  &__form-input {
+    @include forms.form-input--with-button;
+  }
+
+  &__icon-button {
+    @include buttons.button--input;
+  }
+}

@@ -1,23 +1,21 @@
-'use strict';
-
 /**
  * Return all `<iframe>` elements under `container` which are annotate-able.
  *
  * @param {Element} container
  * @return {HTMLIFrameElement[]}
  */
-function findFrames(container) {
+export function findFrames(container) {
   const frames = Array.from(container.getElementsByTagName('iframe'));
   return frames.filter(shouldEnableAnnotation);
 }
 
 // Check if the iframe has already been injected
-function hasHypothesis(iframe) {
+export function hasHypothesis(iframe) {
   return iframe.contentWindow.__hypothesis_frame === true;
 }
 
 // Inject embed.js into the iframe
-function injectHypothesis(iframe, scriptUrl, config) {
+export function injectHypothesis(iframe, scriptUrl, config) {
   const configElement = document.createElement('script');
   configElement.className = 'js-hypothesis-config';
   configElement.type = 'application/json';
@@ -34,7 +32,7 @@ function injectHypothesis(iframe, scriptUrl, config) {
 }
 
 // Check if we can access this iframe's document
-function isAccessible(iframe) {
+export function isAccessible(iframe) {
   try {
     return !!iframe.contentDocument;
   } catch (e) {
@@ -65,9 +63,9 @@ function shouldEnableAnnotation(iframe) {
   return isNotClientFrame && enabled;
 }
 
-function isDocumentReady(iframe, callback) {
+export function isDocumentReady(iframe, callback) {
   if (iframe.contentDocument.readyState === 'loading') {
-    iframe.contentDocument.addEventListener('DOMContentLoaded', function() {
+    iframe.contentDocument.addEventListener('DOMContentLoaded', function () {
       callback();
     });
   } else {
@@ -75,21 +73,12 @@ function isDocumentReady(iframe, callback) {
   }
 }
 
-function isLoaded(iframe, callback) {
+export function isLoaded(iframe, callback) {
   if (iframe.contentDocument.readyState !== 'complete') {
-    iframe.addEventListener('load', function() {
+    iframe.addEventListener('load', function () {
       callback();
     });
   } else {
     callback();
   }
 }
-
-module.exports = {
-  findFrames: findFrames,
-  hasHypothesis: hasHypothesis,
-  injectHypothesis: injectHypothesis,
-  isAccessible: isAccessible,
-  isLoaded: isLoaded,
-  isDocumentReady: isDocumentReady,
-};

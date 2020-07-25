@@ -1,18 +1,16 @@
-'use strict';
+import * as time from '../time';
 
-const time = require('../time');
-
-const minute = 60;
+const second = 1000;
+const minute = second * 60;
 const hour = minute * 60;
 const day = hour * 24;
-const msPerSecond = 1000;
 
-describe('sidebar.util.time', function() {
+describe('sidebar.util.time', function () {
   let sandbox;
   let fakeIntl;
 
-  beforeEach(function() {
-    sandbox = sinon.sandbox.create();
+  beforeEach(function () {
+    sandbox = sinon.createSandbox();
     sandbox.useFakeTimers();
 
     fakeIntl = {
@@ -25,7 +23,7 @@ describe('sidebar.util.time', function() {
     time.clearFormatters();
   });
 
-  afterEach(function() {
+  afterEach(function () {
     sandbox.restore();
   });
 
@@ -41,15 +39,15 @@ describe('sidebar.util.time', function() {
     // - A user in the UK who views the annotation will see “Jan 1”
     //   on the annotation card (correct)
     // - A user in San Francisco who views the annotation will see
-    //   “Dec 31st 2018" on the annotation card (also correct from
+    //   “Dec 31, 2018" on the annotation card (also correct from
     //   their point of view).
     const date = new Date(isoString);
     date.getFullYear = sinon.stub().returns(date.getUTCFullYear());
     return date;
   };
 
-  describe('.toFuzzyString', function() {
-    it('Handles empty dates', function() {
+  describe('.toFuzzyString', function () {
+    it('Handles empty dates', function () {
       const date = null;
       const expect = '';
       assert.equal(time.toFuzzyString(date, undefined), expect);
@@ -58,11 +56,11 @@ describe('sidebar.util.time', function() {
     [
       { now: '1970-01-01T00:00:10.000Z', text: 'Just now' },
       { now: '1970-01-01T00:00:29.000Z', text: 'Just now' },
-      { now: '1970-01-01T00:00:49.000Z', text: '49 secs' },
-      { now: '1970-01-01T00:01:05.000Z', text: '1 min' },
-      { now: '1970-01-01T00:03:05.000Z', text: '3 mins' },
-      { now: '1970-01-01T01:00:00.000Z', text: '1 hr' },
-      { now: '1970-01-01T04:00:00.000Z', text: '4 hrs' },
+      { now: '1970-01-01T00:00:49.000Z', text: '49 secs ago' },
+      { now: '1970-01-01T00:01:05.000Z', text: '1 min ago' },
+      { now: '1970-01-01T00:03:05.000Z', text: '3 mins ago' },
+      { now: '1970-01-01T01:00:00.000Z', text: '1 hr ago' },
+      { now: '1970-01-01T04:00:00.000Z', text: '4 hrs ago' },
     ].forEach(test => {
       it('creates correct fuzzy string for fixture ' + test.now, () => {
         const timeStamp = fakeDate('1970-01-01T00:00:00.000Z');
@@ -123,7 +121,7 @@ describe('sidebar.util.time', function() {
       );
     });
 
-    it('falls back to simple strings for >24hrs ago', function() {
+    it('falls back to simple strings for >24hrs ago', function () {
       // If window.Intl is not available then the date formatting for dates
       // more than one day ago falls back to a simple date string.
       const timeStamp = fakeDate('1970-01-01T00:00:00.000Z');
@@ -135,7 +133,7 @@ describe('sidebar.util.time', function() {
       assert.equal(formattedDate, 'Thu Jan 01 1970');
     });
 
-    it('falls back to simple strings for >1yr ago', function() {
+    it('falls back to simple strings for >1yr ago', function () {
       // If window.Intl is not available then the date formatting for dates
       // more than one year ago falls back to a simple date string.
       const timeStamp = fakeDate('1970-01-01T00:00:00.000Z');
@@ -148,25 +146,25 @@ describe('sidebar.util.time', function() {
     });
   });
 
-  describe('.decayingInterval', function() {
-    it('Handles empty dates', function() {
+  describe('.decayingInterval', function () {
+    it('Handles empty dates', function () {
       const date = null;
       time.decayingInterval(date, undefined);
     });
 
-    it('uses a short delay for recent timestamps', function() {
+    it('uses a short delay for recent timestamps', function () {
       const date = new Date().toISOString();
       const callback = sandbox.stub();
       time.decayingInterval(date, callback);
-      sandbox.clock.tick(6 * msPerSecond);
+      sandbox.clock.tick(6 * second);
       assert.calledWith(callback, date);
-      sandbox.clock.tick(6 * msPerSecond);
+      sandbox.clock.tick(6 * second);
       assert.calledTwice(callback);
     });
 
-    it('uses a longer delay for older timestamps', function() {
+    it('uses a longer delay for older timestamps', function () {
       const date = new Date().toISOString();
-      const ONE_MINUTE = minute * msPerSecond;
+      const ONE_MINUTE = minute;
       sandbox.clock.tick(10 * ONE_MINUTE);
       const callback = sandbox.stub();
       time.decayingInterval(date, callback);
@@ -178,18 +176,18 @@ describe('sidebar.util.time', function() {
       assert.calledTwice(callback);
     });
 
-    it('returned function cancels the timer', function() {
+    it('returned function cancels the timer', function () {
       const date = new Date().toISOString();
       const callback = sandbox.stub();
       const cancel = time.decayingInterval(date, callback);
       cancel();
-      sandbox.clock.tick(minute * msPerSecond);
+      sandbox.clock.tick(minute);
       assert.notCalled(callback);
     });
 
-    it('does not set a timeout for dates > 24hrs ago', function() {
+    it('does not set a timeout for dates > 24hrs ago', function () {
       const date = new Date().toISOString();
-      const ONE_DAY = day * msPerSecond;
+      const ONE_DAY = day;
       sandbox.clock.tick(10 * ONE_DAY);
       const callback = sandbox.stub();
 
@@ -200,17 +198,17 @@ describe('sidebar.util.time', function() {
     });
   });
 
-  describe('.nextFuzzyUpdate', function() {
-    it('Handles empty dates', function() {
+  describe('.nextFuzzyUpdate', function () {
+    it('Handles empty dates', function () {
       const date = null;
       const expect = null;
       assert.equal(time.nextFuzzyUpdate(date, undefined), expect);
     });
 
     [
-      { now: '1970-01-01T00:00:10.000Z', expectedUpdateTime: 5 }, // we have a minimum of 5 secs
-      { now: '1970-01-01T00:00:20.000Z', expectedUpdateTime: 5 },
-      { now: '1970-01-01T00:00:49.000Z', expectedUpdateTime: 5 },
+      { now: '1970-01-01T00:00:10.000Z', expectedUpdateTime: 5 * second }, // we have a minimum of 5 secs
+      { now: '1970-01-01T00:00:20.000Z', expectedUpdateTime: 5 * second },
+      { now: '1970-01-01T00:00:49.000Z', expectedUpdateTime: 5 * second },
       { now: '1970-01-01T00:01:05.000Z', expectedUpdateTime: minute },
       { now: '1970-01-01T00:03:05.000Z', expectedUpdateTime: minute },
       { now: '1970-01-01T04:00:00.000Z', expectedUpdateTime: hour },

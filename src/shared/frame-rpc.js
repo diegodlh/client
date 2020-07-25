@@ -1,5 +1,3 @@
-'use strict';
-
 /* eslint-disable */
 
 /** This software is released under the MIT license:
@@ -31,9 +29,14 @@
 
 const VERSION = '1.0.0';
 
-module.exports = RPC;
-
-function RPC(src, dst, origin, methods) {
+/**
+ *  @constructor
+ *  @param {Window} src
+ *  @param {Window} dst
+ *  @param {string} origin
+ *  @param {(Object<string, ((any) => any)>) | ((any) => any)} methods
+ */
+export default function RPC(src, dst, origin, methods) {
   if (!(this instanceof RPC)) return new RPC(src, dst, origin, methods);
   const self = this;
   this.src = src;
@@ -49,7 +52,7 @@ function RPC(src, dst, origin, methods) {
   this._sequence = 0;
   this._callbacks = {};
 
-  this._onmessage = function(ev) {
+  this._onmessage = function (ev) {
     if (self._destroyed) return;
     if (self.dst !== ev.source) return;
     if (self.origin !== '*' && ev.origin !== self.origin) return;
@@ -63,17 +66,24 @@ function RPC(src, dst, origin, methods) {
     (typeof methods === 'function' ? methods(this) : methods) || {};
 }
 
-RPC.prototype.destroy = function() {
+RPC.prototype.destroy = function () {
   this._destroyed = true;
   this.src.removeEventListener('message', this._onmessage);
 };
 
-RPC.prototype.call = function(method) {
+/**
+ * @param {string} method
+ */
+RPC.prototype.call = function (method) {
   const args = [].slice.call(arguments, 1);
   return this.apply(method, args);
 };
 
-RPC.prototype.apply = function(method, args) {
+/**
+ * @param {string} method
+ * @param {any[]} args
+ */
+RPC.prototype.apply = function (method, args) {
   if (this._destroyed) return;
   const seq = this._sequence++;
   if (typeof args[args.length - 1] === 'function') {
@@ -92,12 +102,12 @@ RPC.prototype.apply = function(method, args) {
   );
 };
 
-RPC.prototype._handle = function(msg) {
+RPC.prototype._handle = function (msg) {
   const self = this;
   if (self._destroyed) return;
   if (msg.hasOwnProperty('method')) {
     if (!this._methods.hasOwnProperty(msg.method)) return;
-    const args = msg.arguments.concat(function() {
+    const args = msg.arguments.concat(function () {
       self.dst.postMessage(
         {
           protocol: 'frame-rpc',

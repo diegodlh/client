@@ -1,6 +1,4 @@
-'use strict';
-
-const queryString = require('query-string');
+import * as queryString from 'query-string';
 
 /**
  * Return an HTML5 audio player with the given src URL.
@@ -51,7 +49,7 @@ function parseTimeString(timeValue) {
   // match[2] - Unit (e.g. 'h','m','s', or empty)
   while ((match = timePattern.exec(timeValue)) !== null) {
     if (match[2]) {
-      seconds += match[1] * multipliers[match[2]];
+      seconds += Number(match[1]) * multipliers[match[2]];
     } else {
       seconds += +match[1]; // Treat values missing units as seconds
     }
@@ -323,7 +321,7 @@ function replaceLinkWithEmbed(link) {
  * embeds of the same media.
  *
  */
-function replaceLinksWithEmbeds(element) {
+export function replaceLinksWithEmbeds(element) {
   let links = element.getElementsByTagName('a');
 
   // `links` is a "live list" of the <a> element children of `element`.
@@ -337,7 +335,3 @@ function replaceLinksWithEmbeds(element) {
     replaceLinkWithEmbed(links[i]);
   }
 }
-
-module.exports = {
-  replaceLinksWithEmbeds: replaceLinksWithEmbeds,
-};

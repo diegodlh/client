@@ -9,27 +9,23 @@
  * change at any time and should write code accordingly. Feature flags should
  * not be cached, and should not be interrogated only at setup time.
  */
-'use strict';
 
-const events = require('../events');
-const bridgeEvents = require('../../shared/bridge-events');
-const warnOnce = require('../../shared/warn-once');
+import bridgeEvents from '../../shared/bridge-events';
+import warnOnce from '../../shared/warn-once';
+import { watch } from '../util/watch';
 
 // @ngInject
-function features($rootScope, bridge, session) {
-  const _sendFeatureFlags = function() {
-    const userFeatures = session.state.features;
-    bridge.call(bridgeEvents.FEATURE_FLAGS_UPDATED, userFeatures || {});
+export default function features(bridge, session, store) {
+  const currentFlags = () => store.profile().features;
+  const sendFeatureFlags = () => {
+    bridge.call(bridgeEvents.FEATURE_FLAGS_UPDATED, currentFlags() || {});
   };
 
-  // user changed is currently called when we initially load
-  // the sidebar and when the user actually logs out/in.
-  $rootScope.$on(events.USER_CHANGED, _sendFeatureFlags);
-
-  // send on frame connected as well because the user_changed event
-  // alone might run before the frames ever connected. This will
-  // provide us the follow up to make sure that the frames get the flags
-  $rootScope.$on(events.FRAME_CONNECTED, _sendFeatureFlags);
+  // Re-send feature flags to connected frames when flags change or a new
+  // frame connects.
+  watch(store.subscribe, [currentFlags, () => store.frames()], () =>
+    sendFeatureFlags()
+  );
 
   /**
    * Returns true if the flag with the given name is enabled for the current
@@ -44,22 +40,21 @@ function features($rootScope, bridge, session) {
     // (see CACHE_TTL in session.js)
     session.load();
 
-    if (!session.state.features) {
+    const flags = currentFlags();
+
+    if (!flags) {
       // features data has not yet been fetched
       return false;
     }
 
-    const features = session.state.features;
-    if (!(flag in features)) {
+    if (!(flag in flags)) {
       warnOnce('looked up unknown feature', flag);
       return false;
     }
-    return features[flag];
+    return flags[flag];
   }
 
   return {
     flagEnabled: flagEnabled,
   };
 }
-
-module.exports = features;

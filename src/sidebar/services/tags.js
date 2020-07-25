@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * @typedef Tag
  * @property {string} text - The label of the tag
@@ -15,7 +13,7 @@
  * on frequency of usage.
  */
 // @ngInject
-function tags(localStorage) {
+export default function tags(localStorage) {
   const TAGS_LIST_KEY = 'hypothesis.user.tags.list';
   const TAGS_MAP_KEY = 'hypothesis.user.tags.map';
 
@@ -23,13 +21,22 @@ function tags(localStorage) {
    * Return a list of tag suggestions matching `query`.
    *
    * @param {string} query
+   * @param {number|null} limit - Optional limit of the results.
    * @return {Tag[]} List of matching tags
    */
-  function filter(query) {
+  function filter(query, limit = null) {
     const savedTags = localStorage.getObject(TAGS_LIST_KEY) || [];
-
+    let resultCount = 0;
     return savedTags.filter(e => {
-      return e.toLowerCase().indexOf(query.toLowerCase()) !== -1;
+      if (e.toLowerCase().indexOf(query.toLowerCase()) !== -1) {
+        if (limit === null || resultCount < limit) {
+          // limit allows a subset of the results
+          // See https://github.com/hypothesis/client/issues/1606
+          ++resultCount;
+          return true;
+        }
+      }
+      return false;
     });
   }
 
@@ -37,7 +44,7 @@ function tags(localStorage) {
    * Update the list of stored tag suggestions based on the tags that a user has
    * entered for a given annotation.
    *
-   * @param {Tag} tags - List of tags.
+   * @param {Tag[]} tags - List of tags.
    */
   function store(tags) {
     // Update the stored (tag, frequency) map.
@@ -71,5 +78,3 @@ function tags(localStorage) {
     store,
   };
 }
-
-module.exports = tags;

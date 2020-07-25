@@ -1,5 +1,3 @@
-'use strict';
-
 // cached date formatting instance.
 // See https://github.com/hypothesis/h/issues/2820#issuecomment-166285361
 let formatter;
@@ -7,8 +5,10 @@ let formatter;
 /**
  * Returns a standard human-readable representation
  * of a date and time.
+ *
+ * @param {Date} date
  */
-function format(date) {
+export function format(date) {
   if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
     if (!formatter) {
       formatter = new Intl.DateTimeFormat(undefined, {
@@ -28,7 +28,3 @@ function format(date) {
     return date.toDateString() + ' ' + date.toLocaleTimeString();
   }
 }
-
-module.exports = {
-  format: format,
-};

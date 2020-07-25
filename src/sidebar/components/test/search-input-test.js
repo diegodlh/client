@@ -1,68 +1,103 @@
-'use strict';
+import { mount } from 'enzyme';
+import { createElement } from 'preact';
 
-const angular = require('angular');
+import SearchInput from '../search-input';
+import { $imports } from '../search-input';
 
-const util = require('../../directive/test/util');
+import mockImportedComponents from '../../../test-util/mock-imported-components';
+import { checkAccessibility } from '../../../test-util/accessibility';
 
-describe('searchInput', function() {
+describe('SearchInput', () => {
   let fakeStore;
 
-  before(function() {
-    angular
-      .module('app', [])
-      .component('searchInput', require('../search-input'));
-  });
+  const createSearchInput = (props = {}) =>
+    // `mount` rendering is used so we can get access to DOM nodes.
+    mount(<SearchInput {...props} />);
 
-  beforeEach(function() {
+  function typeQuery(wrapper, query) {
+    const input = wrapper.find('input');
+    input.getDOMNode().value = query;
+    input.simulate('input');
+  }
+
+  beforeEach(() => {
     fakeStore = { isLoading: sinon.stub().returns(false) };
-    angular.mock.module('app', {
-      store: fakeStore,
+
+    $imports.$mock(mockImportedComponents());
+    $imports.$mock({
+      '../store/use-store': callback => callback(fakeStore),
     });
   });
 
-  it('displays the search query', function() {
-    const el = util.createDirective(document, 'searchInput', {
-      query: 'foo',
-    });
-    const input = el.find('input')[0];
-    assert.equal(input.value, 'foo');
+  afterEach(() => {
+    $imports.$restore();
   });
 
-  it('invokes #onSearch() when the query changes', function() {
+  it('displays the active query', () => {
+    const wrapper = createSearchInput({ query: 'foo' });
+    assert.equal(wrapper.find('input').prop('value'), 'foo');
+  });
+
+  it('resets input field value to active query when active query changes', () => {
+    const wrapper = createSearchInput({ query: 'foo' });
+
+    // Simulate user editing the pending query, but not committing it.
+    typeQuery(wrapper, 'pending-query');
+
+    // Check that the pending query is displayed.
+    assert.equal(wrapper.find('input').prop('value'), 'pending-query');
+
+    // Simulate active query being reset.
+    wrapper.setProps({ query: '' });
+
+    assert.equal(wrapper.find('input').prop('value'), '');
+  });
+
+  it('invokes `onSearch` with pending query when form is submitted', () => {
     const onSearch = sinon.stub();
-    const el = util.createDirective(document, 'searchInput', {
-      query: 'foo',
-      onSearch: {
-        args: ['$query'],
-        callback: onSearch,
-      },
-    });
-    const input = el.find('input')[0];
-    const form = el.find('form');
-    input.value = 'new-query';
-    form.submit();
+    const wrapper = createSearchInput({ query: 'foo', onSearch });
+    typeQuery(wrapper, 'new-query');
+    wrapper.find('form').simulate('submit');
     assert.calledWith(onSearch, 'new-query');
   });
 
-  describe('loading indicator', function() {
-    it('is hidden when there are no API requests in flight', function() {
-      const el = util.createDirective(document, 'search-input', {});
-      const spinner = el[0].querySelector('spinner');
-
-      fakeStore.isLoading.returns(false);
-      el.scope.$digest();
-
-      assert.equal(util.isHidden(spinner), true);
-    });
-
-    it('is visible when there are API requests in flight', function() {
-      const el = util.createDirective(document, 'search-input', {});
-      const spinner = el[0].querySelector('spinner');
-
-      fakeStore.isLoading.returns(true);
-      el.scope.$digest();
-
-      assert.equal(util.isHidden(spinner), false);
-    });
+  it('renders loading indicator when app is in a "loading" state', () => {
+    fakeStore.isLoading.returns(true);
+    const wrapper = createSearchInput();
+    assert.isTrue(wrapper.exists('Spinner'));
   });
+
+  it('doesn\'t render search button when app is in "loading" state', () => {
+    fakeStore.isLoading.returns(true);
+    const wrapper = createSearchInput();
+    assert.isFalse(wrapper.exists('button'));
+  });
+
+  it('doesn\'t render loading indicator when app is not in "loading" state', () => {
+    fakeStore.isLoading.returns(false);
+    const wrapper = createSearchInput();
+    assert.isFalse(wrapper.exists('Spinner'));
+  });
+
+  it('renders search button when app is not in "loading" state', () => {
+    fakeStore.isLoading.returns(false);
+    const wrapper = createSearchInput();
+    assert.isTrue(wrapper.exists('Button'));
+  });
+
+  it(
+    'should pass a11y checks',
+    checkAccessibility([
+      {
+        content: () => createSearchInput(),
+      },
+      {
+        name: 'loading state',
+        content: () => {
+          fakeStore.isLoading.returns(true);
+          return createSearchInput();
+        },
+      },
+    ])
+  );
 });

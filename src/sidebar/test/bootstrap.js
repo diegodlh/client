@@ -1,21 +1,25 @@
-'use strict';
-
 // Expose the sinon assertions.
 sinon.assert.expose(assert, { prefix: null });
 
-// Load Angular libraries required by tests.
-//
-// The tests for Client currently rely on having
-// a full version of jQuery available and several of
-// the directive tests rely on angular.element() returning
-// a full version of jQuery.
-//
-window.jQuery = window.$ = require('jquery');
-require('angular');
-require('angular-mocks');
+// Patch extra assert helper methods
+import { patch } from '../../test-util/assert-methods';
+patch(assert);
 
 // Configure Enzyme for UI tests.
-require('preact/debug');
-const { configure } = require('enzyme');
-const { Adapter } = require('enzyme-adapter-preact-pure');
+import 'preact/debug';
+
+import { configure } from 'enzyme';
+import { Adapter } from 'enzyme-adapter-preact-pure';
+
 configure({ adapter: new Adapter() });
+
+// Make all the icons that are available for use with `SvgIcon` in the actual
+// app available in the tests. This enables validation of icon names passed to
+// `SvgIcon`.
+import sidebarIcons from '../icons';
+import annotatorIcons from '../../annotator/icons';
+import { registerIcons } from '../../shared/components/svg-icon';
+registerIcons({
+  ...sidebarIcons,
+  ...annotatorIcons,
+});

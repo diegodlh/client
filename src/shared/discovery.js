@@ -1,10 +1,8 @@
-'use strict';
-
 /**
  * Callback invoked when another frame is discovered in this window which runs
  * the Hypothesis sidebar or annotation layer code.
  *
- * @type {Function} DiscoveryCallback
+ * @callback DiscoveryCallback
  * @param {Window} source - The frame that was discovered.
  * @param {string} origin - The origin to use when posting messages to this frame.
  * @param {string} token - A random identifier used by this frame.
@@ -32,7 +30,7 @@
  * 5. Clients listen for "ack" messages. When they receive one from a server
  *    they call the callback to `startDiscovery`.
  */
-class Discovery {
+export default class Discovery {
   /**
    * @param {Window} target
    * @param {Object} options
@@ -117,7 +115,7 @@ class Discovery {
     // window and send messages to them.
     const queue = [this.target.top];
     while (queue.length > 0) {
-      const parent = queue.shift();
+      const parent = /** @type {Window} */ (queue.shift());
       if (parent !== this.target) {
         parent.postMessage(beaconMessage, this.origin);
       }
@@ -178,7 +176,7 @@ class Discovery {
 
     // Notify caller of `startDiscovery` in this frame that we found another
     // frame.
-    if (discovered) {
+    if (discovered && this.onDiscovery) {
       this.onDiscovery.call(null, source, origin, token);
     }
   }
@@ -224,10 +222,6 @@ class Discovery {
    * and a server.
    */
   generateToken() {
-    return Math.random()
-      .toString()
-      .replace(/\D/g, '');
+    return Math.random().toString().replace(/\D/g, '');
   }
 }
-
-module.exports = Discovery;

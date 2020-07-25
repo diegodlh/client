@@ -1,6 +1,4 @@
-'use strict';
-
-const ViewFilter = require('../view-filter');
+import ViewFilter from '../view-filter';
 
 function isoDateWithAge(age) {
   return new Date(Date.now() - age * 1000).toISOString();
@@ -47,7 +45,10 @@ describe('sidebar/services/view-filter', () => {
     let annotations;
 
     beforeEach(() => {
-      annotations = [{ id: 1, text: poem.tiger }, { id: 2, text: poem.raven }];
+      annotations = [
+        { id: 1, text: poem.tiger },
+        { id: 2, text: poem.raven },
+      ];
     });
 
     it('requires all terms to match for "and" operator', () => {
@@ -74,9 +75,10 @@ describe('sidebar/services/view-filter', () => {
   describe('"any" field', () => {
     it('finds matches in any field', () => {
       const annotations = [
-        { id: 1, text: poem.tiger },
-        { id: 2, user: 'Tiger' },
-        { id: 3, tags: ['Tiger'] },
+        { id: 1, text: poem.tiger, target: [{}] },
+        { id: 4, user: 'lion', target: [{}] },
+        { id: 2, user: 'Tiger', target: [{}] },
+        { id: 3, tags: ['Tiger'], target: [{}] },
       ];
       const filters = { any: { terms: ['Tiger'], operator: 'and' } };
 
@@ -191,6 +193,7 @@ describe('sidebar/services/view-filter', () => {
       const annotation = {
         id: 1,
         updated: isoDateWithAge(50),
+        target: [{}],
       };
       const filters = {
         since: { terms: [100], operator: 'and' },
@@ -205,6 +208,7 @@ describe('sidebar/services/view-filter', () => {
       const annotation = {
         id: 1,
         updated: isoDateWithAge(150),
+        target: [{}],
       };
       const filters = {
         since: { terms: [100], operator: 'and' },
@@ -217,7 +221,11 @@ describe('sidebar/services/view-filter', () => {
   });
 
   it('ignores filters with no terms in the query', () => {
-    const annotation = { id: 1, tags: ['foo'] };
+    const annotation = {
+      id: 1,
+      tags: ['foo'],
+      target: [{}],
+    };
     const filters = {
       any: {
         terms: ['foo'],
@@ -232,5 +240,22 @@ describe('sidebar/services/view-filter', () => {
     const result = viewFilter.filter([annotation], filters);
 
     assert.deepEqual(result, [1]);
+  });
+
+  it('ignores annotations (drafts) with no id', () => {
+    const annotation = {
+      tags: ['foo'],
+      target: [{}],
+    };
+    const filters = {
+      any: {
+        terms: ['foo'],
+        operator: 'and',
+      },
+    };
+
+    const result = viewFilter.filter([annotation], filters);
+
+    assert.deepEqual(result, []);
   });
 });

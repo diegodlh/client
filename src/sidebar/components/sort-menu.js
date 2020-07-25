@@ -1,25 +1,24 @@
-'use strict';
+import { createElement } from 'preact';
 
-const { createElement } = require('preact');
+import useStore from '../store/use-store';
 
-const useStore = require('../store/use-store');
-
-const Menu = require('./menu');
-const MenuItem = require('./menu-item');
+import Menu from './menu';
+import MenuItem from './menu-item';
+import SvgIcon from '../../shared/components/svg-icon';
 
 /**
  * A drop-down menu of sorting options for a collection of annotations.
  */
-function SortMenu() {
+export default function SortMenu() {
   const actions = useStore(store => ({
     setSortKey: store.setSortKey,
   }));
   // The currently-applied sort order
-  const sortKey = useStore(store => store.getState().sortKey);
+  const sortKey = useStore(store => store.getState().selection.sortKey);
   // All available sorting options. These change depending on current
   // "tab" or context.
   const sortKeysAvailable = useStore(
-    store => store.getState().sortKeysAvailable
+    store => store.getState().selection.sortKeysAvailable
   );
 
   const menuItems = sortKeysAvailable.map(sortOption => {
@@ -35,7 +34,11 @@ function SortMenu() {
     );
   });
 
-  const menuLabel = <i className="h-icon-sort top-bar__btn" />;
+  const menuLabel = (
+    <span className="top-bar__menu-label">
+      <SvgIcon name="sort" className="top-bar__menu-icon" />
+    </span>
+  );
 
   return (
     <div className="sort-menu">
@@ -52,5 +55,3 @@ function SortMenu() {
 }
 
 SortMenu.propTypes = {};
-
-module.exports = SortMenu;

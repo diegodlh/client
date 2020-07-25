@@ -1,27 +1,28 @@
-'use strict';
+import {
+  createSelector,
+  createSelectorCreator,
+  defaultMemoize,
+} from 'reselect';
+import shallowEqual from 'shallowequal';
 
-const util = require('../util');
+import * as util from '../util';
 
 function init() {
-  return {
-    // The list of frames connected to the sidebar app
-    frames: [],
-  };
+  // The list of frames connected to the sidebar app
+  return [];
 }
 
 const update = {
-  CONNECT_FRAME: function(state, action) {
-    return { frames: state.frames.concat(action.frame) };
+  CONNECT_FRAME: function (state, action) {
+    return [...state, action.frame];
   },
 
-  DESTROY_FRAME: function(state, action) {
-    return {
-      frames: state.frames.filter(f => f !== action.frame),
-    };
+  DESTROY_FRAME: function (state, action) {
+    return state.filter(f => f !== action.frame);
   },
 
-  UPDATE_FRAME_ANNOTATION_FETCH_STATUS: function(state, action) {
-    const frames = state.frames.map(function(frame) {
+  UPDATE_FRAME_ANNOTATION_FETCH_STATUS: function (state, action) {
+    const frames = state.map(function (frame) {
       const match = frame.uri && frame.uri === action.uri;
       if (match) {
         return Object.assign({}, frame, {
@@ -31,9 +32,7 @@ const update = {
         return frame;
       }
     });
-    return {
-      frames: frames,
-    };
+    return frames;
   },
 };
 
@@ -71,17 +70,35 @@ function frames(state) {
   return state.frames;
 }
 
+/**
+ * Return the "main" frame that the sidebar is connected to.
+ *
+ * The sidebar may be connected to multiple frames from different URLs.
+ * For some purposes, the main frame (typically the top-level one that contains
+ * the sidebar) needs to be distinguished. This selector returns the main frame
+ * for that purpose.
+ *
+ * This may be `null` during startup.
+ */
+const mainFrame = createSelector(
+  state => state.frames,
+
+  // Sub-frames will all have a "frame identifier" set. The main frame is the
+  // one with a `null` id.
+  frames => frames.find(f => !f.id) || null
+);
+
 function searchUrisForFrame(frame) {
   let uris = [frame.uri];
 
   if (frame.metadata && frame.metadata.documentFingerprint) {
-    uris = frame.metadata.link.map(function(link) {
+    uris = frame.metadata.link.map(function (link) {
       return link.href;
     });
   }
 
   if (frame.metadata && frame.metadata.link) {
-    frame.metadata.link.forEach(function(link) {
+    frame.metadata.link.forEach(function (link) {
       if (link.href.startsWith('doi:')) {
         uris.push(link.href);
       }
@@ -91,18 +108,27 @@ function searchUrisForFrame(frame) {
   return uris;
 }
 
-/**
- * Return the set of URIs that should be used to search for annotations on the
- * current page.
- */
-function searchUris(state) {
-  return state.frames.reduce(function(uris, frame) {
-    return uris.concat(searchUrisForFrame(frame));
-  }, []);
-}
+// "selector creator" that uses `shallowEqual` instead of `===` for memoization
+const createShallowEqualSelector = createSelectorCreator(
+  defaultMemoize,
+  shallowEqual
+);
 
-module.exports = {
+// Memoized selector will return the same array (of URIs) reference unless the
+// values of the array change (are not shallow-equal).
+const searchUris = createShallowEqualSelector(
+  state => {
+    return state.frames.reduce(
+      (uris, frame) => uris.concat(searchUrisForFrame(frame)),
+      []
+    );
+  },
+  uris => uris
+);
+
+export default {
   init: init,
+  namespace: 'frames',
   update: update,
 
   actions: {
@@ -113,6 +139,7 @@ module.exports = {
 
   selectors: {
     frames,
+    mainFrame,
     searchUris,
   },
 };

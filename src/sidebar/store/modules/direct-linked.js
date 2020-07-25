@@ -1,6 +1,4 @@
-'use strict';
-
-const util = require('../util');
+import * as util from '../util';
 
 function init(settings) {
   return {
@@ -64,6 +62,13 @@ const update = {
       directLinkedGroupId: null,
     };
   },
+  CLEAR_SELECTION: function () {
+    return {
+      directLinkedAnnotationId: null,
+      directLinkedGroupId: null,
+      directLinkedGroupFetchFailed: false,
+    };
+  },
 };
 
 const actions = util.actionTypes(update);
@@ -120,8 +125,24 @@ function clearDirectLinkedIds() {
   };
 }
 
-module.exports = {
+/**
+ * Selectors
+ */
+function directLinkedAnnotationId(state) {
+  return state.directLinked.directLinkedAnnotationId;
+}
+
+function directLinkedGroupId(state) {
+  return state.directLinked.directLinkedGroupId;
+}
+
+function directLinkedGroupFetchFailed(state) {
+  return state.directLinked.directLinkedGroupFetchFailed;
+}
+
+export default {
   init,
+  namespace: 'directLinked',
   update,
   actions: {
     setDirectLinkedGroupFetchFailed,
@@ -130,5 +151,9 @@ module.exports = {
     clearDirectLinkedGroupFetchFailed,
     clearDirectLinkedIds,
   },
-  selectors: {},
+  selectors: {
+    directLinkedAnnotationId,
+    directLinkedGroupFetchFailed,
+    directLinkedGroupId,
+  },
 };

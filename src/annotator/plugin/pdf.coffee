@@ -1,6 +1,6 @@
 Plugin = require('../plugin')
 
-RenderingStates = require('../pdfjs-rendering-states')
+{ default: RenderingStates } = require('../pdfjs-rendering-states')
 
 module.exports = class PDF extends Plugin
   documentLoaded: null
@@ -9,7 +9,7 @@ module.exports = class PDF extends Plugin
 
   pluginInit: ->
     @annotator.anchoring = require('../anchoring/pdf')
-    PDFMetadata = require('./pdf-metadata')
+    { default: PDFMetadata } = require('./pdf-metadata')
 
     @pdfViewer = PDFViewerApplication.pdfViewer
     @pdfViewer.viewer.classList.add('has-transparent-text-layer')

@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Fallback in-memory store if `localStorage` is not read/writable.
  */
@@ -27,7 +25,7 @@ class InMemoryStorage {
  * in third-party iframes.
  */
 // @ngInject
-function localStorage($window) {
+export default function localStorage($window) {
   let storage;
   let testKey = 'hypothesis.testKey';
 
@@ -65,5 +63,3 @@ function localStorage($window) {
     },
   };
 }
-
-module.exports = localStorage;

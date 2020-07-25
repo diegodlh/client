@@ -1,5 +1,3 @@
-'use strict';
-
 // `Object.assign()`-like helper. Used because this script needs to work
 // in IE 10/11 without polyfills.
 function assign(dest, src) {
@@ -27,7 +25,7 @@ function assign(dest, src) {
  *
  * @param {Document|Element} document - The root element to search.
  */
-function jsonConfigsFrom(document) {
+export function jsonConfigsFrom(document) {
   const config = {};
   const settingsElements = document.querySelectorAll(
     'script.js-hypothesis-config'
@@ -36,7 +34,7 @@ function jsonConfigsFrom(document) {
   for (let i = 0; i < settingsElements.length; i++) {
     let settings;
     try {
-      settings = JSON.parse(settingsElements[i].textContent);
+      settings = JSON.parse(settingsElements[i].textContent || '');
     } catch (err) {
       console.warn(
         'Could not parse settings from js-hypothesis-config tags',
@@ -49,7 +47,3 @@ function jsonConfigsFrom(document) {
 
   return config;
 }
-
-module.exports = {
-  jsonConfigsFrom: jsonConfigsFrom,
-};

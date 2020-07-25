@@ -1,12 +1,21 @@
-'use strict';
-
 /* global process */
 
-const shallowEqual = require('shallowequal');
-const { useEffect, useRef, useReducer } = require('preact/hooks');
+import { useEffect, useRef, useReducer } from 'preact/hooks';
+import shallowEqual from 'shallowequal';
 
-const { useService } = require('../util/service-context');
-const warnOnce = require('../../shared/warn-once');
+import warnOnce from '../../shared/warn-once';
+import { useService } from '../util/service-context';
+
+/**
+ * @typedef {import("redux").Store} Store
+ */
+
+/**
+ * @template T
+ * @callback StoreCallback
+ * @param {Store} store
+ * @return {T}
+ */
 
 /**
  * Hook for accessing state or actions from the store inside a component.
@@ -32,20 +41,20 @@ const warnOnce = require('../../shared/warn-once');
  *   }
  *
  * @template T
- * @param {Function} callback -
+ * @param {StoreCallback<T>} callback -
  *   Callback that receives the store as an argument and returns some state
  *   and/or actions extracted from the store.
  * @return {T} - The result of `callback(store)`
  */
-function useStore(callback) {
+export default function useStore(callback) {
   const store = useService('store');
 
   // Store the last-used callback in a ref so we can access it in the effect
   // below without having to re-subscribe to the store when it changes.
-  const lastCallback = useRef(null);
+  const lastCallback = useRef(/** @type {StoreCallback<T>|null} */ (null));
   lastCallback.current = callback;
 
-  const lastResult = useRef(null);
+  const lastResult = useRef(/** @type {T|undefined} */ (undefined));
   lastResult.current = callback(store);
 
   // Check for a performance issue caused by `callback` returning a different
@@ -60,6 +69,7 @@ function useStore(callback) {
   }
 
   // Abuse `useReducer` to force updates when the store state changes.
+
   const [, forceUpdate] = useReducer(x => x + 1, 0);
 
   // Connect to the store, call `callback(store)` whenever the store changes
@@ -71,7 +81,8 @@ function useStore(callback) {
         return;
       }
       lastResult.current = result;
-      forceUpdate();
+      // Force this function to ignore parameters and just force a store update.
+      /** @type {()=>any} */ (forceUpdate)();
     }
 
     // Check for any changes since the component was rendered.
@@ -86,5 +97,3 @@ function useStore(callback) {
 
   return lastResult.current;
 }
-
-module.exports = useStore;

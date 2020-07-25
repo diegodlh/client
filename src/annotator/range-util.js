@@ -1,10 +1,8 @@
-'use strict';
-
 /**
  * Returns true if the start point of a selection occurs after the end point,
  * in document order.
  */
-function isSelectionBackwards(selection) {
+export function isSelectionBackwards(selection) {
   if (selection.focusNode === selection.anchorNode) {
     return selection.focusOffset < selection.anchorOffset;
   }
@@ -22,7 +20,7 @@ function isSelectionBackwards(selection) {
  * @param {Range} range
  * @param {Node} node
  */
-function isNodeInRange(range, node) {
+export function isNodeInRange(range, node) {
   if (node === range.startContainer || node === range.endContainer) {
     return true;
   }
@@ -71,10 +69,10 @@ function forEachNodeInRange(range, callback) {
  * @param {Range} range
  * @return {Array<Rect>} Array of bounding rects in viewport coordinates.
  */
-function getTextBoundingBoxes(range) {
+export function getTextBoundingBoxes(range) {
   const whitespaceOnly = /^\s*$/;
   const textNodes = [];
-  forEachNodeInRange(range, function(node) {
+  forEachNodeInRange(range, function (node) {
     if (
       node.nodeType === Node.TEXT_NODE &&
       !node.textContent.match(whitespaceOnly)
@@ -84,7 +82,7 @@ function getTextBoundingBoxes(range) {
   });
 
   let rects = [];
-  textNodes.forEach(function(node) {
+  textNodes.forEach(function (node) {
     const nodeRange = node.ownerDocument.createRange();
     nodeRange.selectNodeContents(node);
     if (node === range.startContainer) {
@@ -116,7 +114,7 @@ function getTextBoundingBoxes(range) {
  * @param {Selection} selection
  * @return {Rect|null}
  */
-function selectionFocusRect(selection) {
+export function selectionFocusRect(selection) {
   if (selection.isCollapsed) {
     return null;
   }
@@ -132,9 +130,37 @@ function selectionFocusRect(selection) {
   }
 }
 
-module.exports = {
-  getTextBoundingBoxes: getTextBoundingBoxes,
-  isNodeInRange: isNodeInRange,
-  isSelectionBackwards: isSelectionBackwards,
-  selectionFocusRect: selectionFocusRect,
-};
+/**
+ * Retrieve a set of items associated with nodes in a given range.
+ *
+ * An `item` can be any data that the caller wishes to compute from or associate
+ * with a node. Only unique items, as determined by `Object.is`, are returned.
+ *
+ * @template T
+ * @param {Range} range
+ * @param {(n: Node) => T} itemForNode - Callback returning the item for a given node
+ * @return {T[]} items
+ */
+export function itemsForRange(range, itemForNode) {
+  const checkedNodes = new Set();
+  const items = new Set();
+
+  forEachNodeInRange(range, node => {
+    let current = node;
+    while (current) {
+      if (checkedNodes.has(current)) {
+        break;
+      }
+      checkedNodes.add(current);
+
+      const item = itemForNode(current);
+      if (item) {
+        items.add(item);
+      }
+
+      current = current.parentNode;
+    }
+  });
+
+  return [...items];
+}

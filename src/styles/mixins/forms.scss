@@ -1,92 +1,98 @@
-@import "../base";
+@use "./focus";
+@use "./utils";
+@use "../variables" as var;
 
-// See http://compass-style.org/reference/compass/utilities/general/clearfix/#mixin-pie-clearfix
-@mixin pie-clearfix {
-  &:after {
-    content: "";
-    display: table;
-    clear: both;
+/* Style input placeholders */
+@mixin placeholder {
+  &.placeholder {
+    @content;
+  }
+  &:placeholder {
+    @content;
+  }
+  &::placeholder {
+    @content;
   }
 }
 
 @mixin focus-outline {
-  border-color: #51A7E8;
-  box-shadow: 0px 1px 2px rgba(0, 0, 0, .075) inset, 0px 0px 5px rgba(81, 167, 232, .5);
-}
-
-@mixin form-input {
-  @include font-normal;
-  border: 1px solid $gray-lighter;
-  border-radius: 2px;
-  padding: .5em .75em;
-  font-weight: normal;
-  color: $gray;
-  background-color: #FAFAFA;
+  border-color: var.$color-focus-outline;
+  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.075) inset,
+    0px 0px 5px var.$color-focus-shadow;
 }
 
 @mixin form-input-focus {
   outline: none;
-  background-color: #FFF;
+  background-color: var.$white;
 
   @include focus-outline;
   @include placeholder {
-    color: $gray;
+    color: var.$color-text--light;
   }
 }
 
-@mixin form-input-error {
-  color: $error-color;
-  border-color: color-weight($error-color, 300);
-  background-color: color-weight($error-color, 50);
+/**
+ * A text input field.
+ *
+ * @param {boolean} [$compact] - Style for a compact space, with tighter padding
+ */
+@mixin form-input($compact: false) {
+  @if $compact {
+    @include utils.font--small;
+    padding: var.$layout-space--xsmall;
+  } @else {
+    @include utils.font--medium;
+    padding: var.$layout-space--xsmall var.$layout-space--small;
+  }
 
-  @include placeholder {
-    color: tint($error-color, 5%);
+  @include utils.border;
+  border-radius: var.$border-radius;
+  color: var.$color-text--light;
+  background-color: var.$grey-0;
+  // Tighten up spacing around text in input
+  line-height: 1;
+
+  &:focus {
+    @include form-input-focus;
+  }
+
+  @media (pointer: coarse) {
+    font-size: var.$touch-input-font-size;
   }
 }
 
-@mixin btn {
-  box-shadow: 0 1px 0 rgba(0, 0, 0, .15);
+/**
+ * A text input that has a button to its right; no border radius
+ *
+ * @param {boolean} [$compact] - For use in compact areas, with tighter padding
+ */
+@mixin form-input--with-button($compact: false) {
+  @include form-input($compact);
+  width: 100%;
+  border-radius: 0;
+}
 
-  background: linear-gradient($button-background-gradient);
-  display: inline-block;
+// TODO: Deprecate
+@mixin primary-action-btn {
+  @include focus.outline-on-keyboard-focus;
+  @include utils.font--medium;
+  color: var.$grey-1;
+  background-color: var.$grey-mid;
+  height: 35px;
+  border: none;
+  border-radius: var.$border-radius;
+
   font-weight: bold;
-  color: $button-text-color;
-  text-shadow: 0 1px 0 #FFF;
-  border-radius: 2px;
-  border: 1px solid $gray-light;
-  padding: .5em .9em;
-}
 
-@mixin btn-hover {
-  box-shadow: 0 1px 0 rgba(0, 0, 0, .05);
-  outline: none;
-  color: $button-text-color;
-  background: $button-background-start;
-  border-color: #bababa;
-}
+  padding-left: 12px;
+  padding-right: 12px;
 
-@mixin btn-active {
-  box-shadow: inset 0 1px 0 rgba(0, 0, 0, .1);
-  background: $button-background-end;
-  color: #424242;
-  border-color: #bababa;
-}
+  &:disabled {
+    // NB: This doesn't allow for enough contrast ratio to meet WCAG AA requirements
+    color: var.$grey-semi;
+  }
 
-@mixin btn-disabled {
-  box-shadow: none;
-  cursor: default;
-  background: #F0F0F0;
-  border-color: #CECECE;
-  color: $gray-light;
+  &:hover:enabled {
+    background-color: var.$grey-6;
+  }
 }
-
-// Tint and shade functions from
-// https://css-tricks.com/snippets/sass/tint-shade-functions
-@function tint($color, $percent){
-  @return mix(white, $color, $percent);
-}
-
-@function shade($color, $percent){
-  @return mix(black, $color, $percent);
-}
-

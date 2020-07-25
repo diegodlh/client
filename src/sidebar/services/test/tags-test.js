@@ -1,6 +1,4 @@
-'use strict';
-
-const angular = require('angular');
+import tagsFactory from '../tags';
 
 const TAGS_LIST_KEY = 'hypothesis.user.tags.list';
 const TAGS_MAP_KEY = 'hypothesis.user.tags.map';
@@ -22,10 +20,6 @@ class FakeStorage {
 describe('sidebar.tags', () => {
   let fakeLocalStorage;
   let tags;
-
-  before(() => {
-    angular.module('h', []).service('tags', require('../tags'));
-  });
 
   beforeEach(() => {
     fakeLocalStorage = new FakeStorage();
@@ -58,12 +52,7 @@ describe('sidebar.tags', () => {
     fakeLocalStorage.setObject(TAGS_MAP_KEY, savedTagsMap);
     fakeLocalStorage.setObject(TAGS_LIST_KEY, savedTagsList);
 
-    angular.mock.module('h', {
-      localStorage: fakeLocalStorage,
-    });
-    angular.mock.inject(_tags_ => {
-      tags = _tags_;
-    });
+    tags = tagsFactory(fakeLocalStorage);
   });
 
   describe('#filter', () => {
@@ -73,6 +62,12 @@ describe('sidebar.tags', () => {
 
     it('is case insensitive', () => {
       assert.deepEqual(tags.filter('Ar'), ['bar', 'argon']);
+    });
+
+    it('limits tags when provided a limit value', () => {
+      assert.deepEqual(tags.filter('r', 1), ['bar']);
+      assert.deepEqual(tags.filter('r', 2), ['bar', 'future']);
+      assert.deepEqual(tags.filter('r', 3), ['bar', 'future', 'argon']);
     });
   });
 

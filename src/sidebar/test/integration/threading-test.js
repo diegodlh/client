@@ -1,9 +1,10 @@
-'use strict';
+import { Injector } from '../../../shared/injector';
 
-const angular = require('angular');
-const immutable = require('seamless-immutable');
-
-const unroll = require('../../../shared/test/util').unroll;
+import rootThreadFactory from '../../services/root-thread';
+import searchFilterFactory from '../../services/search-filter';
+import viewFilterFactory from '../../services/view-filter';
+import storeFactory from '../../store';
+import immutable from '../../util/immutable';
 
 const fixtures = immutable({
   annotations: [
@@ -33,16 +34,16 @@ const fixtures = immutable({
   ],
 });
 
-describe('annotation threading', function() {
+describe('annotation threading', function () {
   let store;
   let rootThread;
 
-  beforeEach(function() {
+  beforeEach(function () {
     const fakeUnicode = {
-      normalize: function(s) {
+      normalize: function (s) {
         return s;
       },
-      fold: function(s) {
+      fold: function (s) {
         return s;
       },
     };
@@ -51,64 +52,57 @@ describe('annotation threading', function() {
       flagEnabled: sinon.stub().returns(true),
     };
 
-    angular
-      .module('app', [])
-      .service('store', require('../../store'))
-      .service('drafts', require('../../services/drafts'))
-      .service('rootThread', require('../../services/root-thread'))
-      .service('searchFilter', require('../../services/search-filter'))
-      .service('viewFilter', require('../../services/view-filter'))
-      .value('features', fakeFeatures)
-      .value('settings', {})
-      .value('unicode', fakeUnicode);
+    const container = new Injector()
+      .register('store', storeFactory)
+      .register('rootThread', rootThreadFactory)
+      .register('searchFilter', searchFilterFactory)
+      .register('annotationsService', () => {})
+      .register('viewFilter', viewFilterFactory)
+      .register('features', { value: fakeFeatures })
+      .register('settings', { value: {} })
+      .register('unicode', { value: fakeUnicode });
 
-    angular.mock.module('app');
-
-    angular.mock.inject(function(_store_, _rootThread_) {
-      store = _store_;
-      rootThread = _rootThread_;
-    });
+    store = container.get('store');
+    rootThread = container.get('rootThread');
   });
 
-  it('should display newly loaded annotations', function() {
+  it('should display newly loaded annotations', function () {
     store.addAnnotations(fixtures.annotations);
     assert.equal(rootThread.thread(store.getState()).children.length, 2);
   });
 
-  it('should not display unloaded annotations', function() {
+  it('should not display unloaded annotations', function () {
     store.addAnnotations(fixtures.annotations);
     store.removeAnnotations(fixtures.annotations);
     assert.equal(rootThread.thread(store.getState()).children.length, 0);
   });
 
-  it('should filter annotations when a search is set', function() {
+  it('should filter annotations when a search is set', function () {
     store.addAnnotations(fixtures.annotations);
     store.setFilterQuery('second');
     assert.equal(rootThread.thread(store.getState()).children.length, 1);
     assert.equal(rootThread.thread(store.getState()).children[0].id, '2');
   });
 
-  unroll(
-    'should sort annotations by #mode',
-    function(testCase) {
+  [
+    {
+      sortKey: 'Oldest',
+      expectedOrder: ['1', '2'],
+    },
+    {
+      sortKey: 'Newest',
+      expectedOrder: ['2', '1'],
+    },
+  ].forEach(testCase => {
+    it(`should sort annotations by ${testCase.mode}`, () => {
       store.addAnnotations(fixtures.annotations);
       store.setSortKey(testCase.sortKey);
       const actualOrder = rootThread
         .thread(store.getState())
-        .children.map(function(thread) {
+        .children.map(function (thread) {
           return thread.annotation.id;
         });
       assert.deepEqual(actualOrder, testCase.expectedOrder);
-    },
-    [
-      {
-        sortKey: 'Oldest',
-        expectedOrder: ['1', '2'],
-      },
-      {
-        sortKey: 'Newest',
-        expectedOrder: ['2', '1'],
-      },
-    ]
-  );
+    });
+  });
 });

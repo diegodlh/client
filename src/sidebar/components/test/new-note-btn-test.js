@@ -1,64 +1,95 @@
-'use strict';
+import { mount } from 'enzyme';
+import { createElement } from 'preact';
+import { act } from 'preact/test-utils';
 
-const angular = require('angular');
+import NewNoteButton from '../new-note-btn';
+import { $imports } from '../new-note-btn';
+import uiConstants from '../../ui-constants';
 
-const events = require('../../events');
-const util = require('../../directive/test/util');
+import { checkAccessibility } from '../../../test-util/accessibility';
+import mockImportedComponents from '../../../test-util/mock-imported-components';
 
-describe('newNoteBtn', function() {
-  let $rootScope;
-  const sandbox = sinon.sandbox.create();
-  const fakeStore = {
-    frames: sinon
-      .stub()
-      .returns([
-        { id: null, uri: 'www.example.org' },
-        { id: '1', uri: 'www.example.org' },
-      ]),
-  };
+describe('NewNoteButton', function () {
+  let fakeStore;
+  let fakeAnnotationsService;
+  let fakeSettings;
 
-  before(function() {
-    angular
-      .module('app', [])
-      .component('selectionTabs', require('../selection-tabs'))
-      .component('newNoteBtn', require('../new-note-btn'));
-  });
+  function createComponent() {
+    return mount(
+      <NewNoteButton
+        annotationsService={fakeAnnotationsService}
+        settings={fakeSettings}
+      />
+    );
+  }
 
-  beforeEach(function() {
-    const fakeFeatures = {
-      flagEnabled: sinon.stub().returns(true),
+  beforeEach(function () {
+    fakeAnnotationsService = {
+      create: sinon.stub(),
     };
-    const fakeSettings = { theme: 'clean' };
-
-    angular.mock.module('app', {
-      store: fakeStore,
-      features: fakeFeatures,
-      settings: fakeSettings,
-    });
-
-    angular.mock.inject(function(_$componentController_, _$rootScope_) {
-      $rootScope = _$rootScope_;
-    });
-  });
-
-  afterEach(function() {
-    sandbox.restore();
-  });
-
-  it('should broadcast BEFORE_ANNOTATION_CREATED event when the new note button is clicked', function() {
-    const annot = {
-      target: [],
-      uri: 'www.example.org',
+    fakeSettings = {
+      branding: {
+        ctaBackgroundColor: '#00f',
+      },
     };
-    const elem = util.createDirective(document, 'newNoteBtn', {
-      store: fakeStore,
+    fakeStore = {
+      createAnnotation: sinon.stub(),
+      mainFrame: sinon.stub(),
+      isLoggedIn: sinon.stub(),
+      openSidebarPanel: sinon.stub(),
+    };
+
+    $imports.$mock(mockImportedComponents());
+    $imports.$mock({
+      '../store/use-store': callback => callback(fakeStore),
     });
-    sandbox.spy($rootScope, '$broadcast');
-    elem.ctrl.onNewNoteBtnClick();
-    assert.calledWith(
-      $rootScope.$broadcast,
-      events.BEFORE_ANNOTATION_CREATED,
-      annot
+  });
+
+  afterEach(() => {
+    $imports.$restore();
+  });
+
+  it("sets a backgroundColor equal to the setting's ctaBackgroundColor color", () => {
+    const wrapper = createComponent();
+    assert.equal(
+      wrapper.find('Button').prop('style').backgroundColor,
+      fakeSettings.branding.ctaBackgroundColor
     );
   });
+
+  it('should display login prompt on click if user not logged in', () => {
+    fakeStore.isLoggedIn.returns(false);
+    const wrapper = createComponent();
+
+    act(() => {
+      wrapper.find('Button').props().onClick();
+    });
+
+    assert.calledWith(
+      fakeStore.openSidebarPanel,
+      uiConstants.PANEL_LOGIN_PROMPT
+    );
+  });
+
+  it('should add a new annotation to the store if user is logged in', () => {
+    fakeStore.isLoggedIn.returns(true);
+    fakeStore.mainFrame.returns({ uri: 'thisFrame' });
+    const wrapper = createComponent();
+
+    act(() => {
+      wrapper.find('Button').props().onClick();
+    });
+
+    assert.calledWith(fakeAnnotationsService.create, {
+      target: [],
+      uri: 'thisFrame',
+    });
+  });
+
+  it(
+    'should pass a11y checks',
+    checkAccessibility({
+      content: () => createComponent(),
+    })
+  );
 });

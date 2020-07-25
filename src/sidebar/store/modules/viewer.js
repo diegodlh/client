@@ -1,6 +1,4 @@
-'use strict';
-
-const util = require('../util');
+import * as util from '../util';
 
 /**
  * This module defines actions and state related to the display mode of the
@@ -9,32 +7,30 @@ const util = require('../util');
 
 function init() {
   return {
-    // Flag that indicates whether the app is the sidebar and connected to
-    // a page where annotations are being shown in context.
-    //
-    // Note that this flag is not available early in the lifecycle of the
-    // application.
-    isSidebar: true,
-
+    // Has the sidebar ever been opened? NB: This is not necessarily the
+    // current state of the sidebar, but tracks whether it has ever been open
+    sidebarHasOpened: false,
     visibleHighlights: false,
   };
 }
 
 const update = {
-  SET_SIDEBAR: function(state, action) {
-    return { isSidebar: action.isSidebar };
-  },
-  SET_HIGHLIGHTS_VISIBLE: function(state, action) {
+  SET_HIGHLIGHTS_VISIBLE: function (state, action) {
     return { visibleHighlights: action.visible };
+  },
+  SET_SIDEBAR_OPENED: (state, action) => {
+    if (action.opened === true) {
+      // If the sidebar is open, track that it has ever been opened
+      return { sidebarHasOpened: true };
+    }
+    // Otherwise, nothing to do here
+    return {};
   },
 };
 
 const actions = util.actionTypes(update);
 
-/** Set whether the app is the sidebar */
-function setAppIsSidebar(isSidebar) {
-  return { type: actions.SET_SIDEBAR, isSidebar: isSidebar };
-}
+// Action creators
 
 /**
  * Sets whether annotation highlights in connected documents are shown
@@ -45,22 +41,27 @@ function setShowHighlights(show) {
 }
 
 /**
- * Returns true if the app is being used as the sidebar in the annotation
- * client, as opposed to the standalone annotation page or stream views.
+ * @param {boolean} opened - If the sidebar is open
  */
-function isSidebar(state) {
-  return state.isSidebar;
+function setSidebarOpened(opened) {
+  return { type: actions.SET_SIDEBAR_OPENED, opened };
 }
 
-module.exports = {
+// Selectors
+
+function hasSidebarOpened(state) {
+  return state.viewer.sidebarHasOpened;
+}
+
+export default {
   init: init,
+  namespace: 'viewer',
   update: update,
   actions: {
-    setAppIsSidebar: setAppIsSidebar,
-    setShowHighlights: setShowHighlights,
+    setShowHighlights,
+    setSidebarOpened,
   },
-
   selectors: {
-    isSidebar,
+    hasSidebarOpened,
   },
 };

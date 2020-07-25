@@ -1,14 +1,12 @@
-'use strict';
+import { Fragment, createElement } from 'preact';
+import propTypes from 'prop-types';
 
-const propTypes = require('prop-types');
-const { Fragment, createElement } = require('preact');
-const { useState } = require('preact/hooks');
+import useStore from '../store/use-store';
+import { copyText } from '../util/copy-to-clipboard';
+import { orgName } from '../util/group-list-item-common';
+import { withServices } from '../util/service-context';
 
-const useStore = require('../store/use-store');
-const { orgName } = require('../util/group-list-item-common');
-const { withServices } = require('../util/service-context');
-
-const MenuItem = require('./menu-item');
+import MenuItem from './menu-item';
 
 /**
  * An item in the groups selection menu.
@@ -18,32 +16,29 @@ const MenuItem = require('./menu-item');
  */
 function GroupListItem({
   analytics,
-  defaultSubmenuOpen = false,
+  isExpanded,
   group,
   groups: groupsService,
+  onExpand,
+  toastMessenger,
 }) {
-  const canLeaveGroup = group.type === 'private';
   const activityUrl = group.links.html;
-  const hasActionMenu = activityUrl || canLeaveGroup;
+  const hasActionMenu = activityUrl || group.canLeave;
   const isSelectable = !group.scopes.enforced || group.isScopedToUri;
 
-  const [isExpanded, setExpanded] = useState(
-    hasActionMenu ? defaultSubmenuOpen : undefined
-  );
   const focusedGroupId = useStore(store => store.focusedGroupId());
   const isSelected = group.id === focusedGroupId;
 
   const actions = useStore(store => ({
     clearDirectLinkedGroupFetchFailed: store.clearDirectLinkedGroupFetchFailed,
     clearDirectLinkedIds: store.clearDirectLinkedIds,
-    focusGroup: store.focusGroup,
   }));
 
   const focusGroup = () => {
     analytics.track(analytics.events.GROUP_SWITCH);
     actions.clearDirectLinkedGroupFetchFailed();
     actions.clearDirectLinkedIds();
-    actions.focusGroup(group.id);
+    groupsService.focus(group.id);
   };
 
   const leaveGroup = () => {
@@ -54,6 +49,11 @@ function GroupListItem({
     }
   };
 
+  /**
+   * Opens or closes the submenu.
+   *
+   * @param {MouseEvent|KeyboardEvent} event
+   */
   const toggleSubmenu = event => {
     event.stopPropagation();
 
@@ -61,39 +61,56 @@ function GroupListItem({
     // TODO - Fix this more cleanly in `MenuItem`.
     event.preventDefault();
 
-    setExpanded(!isExpanded);
+    onExpand(!isExpanded);
   };
 
-  // Close the submenu when any clicks happen which close the top-level menu.
-  const collapseSubmenu = () => setExpanded(false);
+  const copyLink = () => {
+    try {
+      copyText(activityUrl);
+      toastMessenger.success(`Copied link for "${group.name}"`);
+    } catch (err) {
+      toastMessenger.error('Unable to copy link');
+    }
+  };
+
+  const copyLinkLabel =
+    group.type === 'private' ? 'Copy invite link' : 'Copy activity link';
 
   return (
-    <Fragment>
-      <MenuItem
-        icon={group.logo || null}
-        iconAlt={orgName(group)}
-        isDisabled={!isSelectable}
-        isExpanded={isExpanded}
-        isSelected={isSelected}
-        isSubmenuVisible={isExpanded}
-        label={group.name}
-        onClick={isSelectable ? focusGroup : toggleSubmenu}
-        onToggleSubmenu={toggleSubmenu}
-      />
-      {isExpanded && (
+    <MenuItem
+      icon={group.logo || 'blank'}
+      iconAlt={orgName(group)}
+      isDisabled={!isSelectable}
+      isExpanded={hasActionMenu ? isExpanded : false}
+      isSelected={isSelected}
+      isSubmenuVisible={hasActionMenu ? isExpanded : undefined}
+      label={group.name}
+      onClick={isSelectable ? focusGroup : toggleSubmenu}
+      onToggleSubmenu={toggleSubmenu}
+      submenu={
         <Fragment>
-          <ul onClick={collapseSubmenu}>
+          <ul>
             {activityUrl && (
               <li>
                 <MenuItem
                   href={activityUrl}
-                  icon="share"
+                  icon="external"
                   isSubmenuItem={true}
                   label="View group activity"
                 />
               </li>
             )}
-            {canLeaveGroup && (
+            {activityUrl && (
+              <li>
+                <MenuItem
+                  onClick={copyLink}
+                  icon="copy"
+                  isSubmenuItem={true}
+                  label={copyLinkLabel}
+                />
+              </li>
+            )}
+            {group.canLeave && (
               <li>
                 <MenuItem
                   icon="leave"
@@ -110,22 +127,32 @@ function GroupListItem({
             </p>
           )}
         </Fragment>
-      )}
-    </Fragment>
+      }
+    />
   );
 }
 
 GroupListItem.propTypes = {
   group: propTypes.object.isRequired,
 
-  /** Whether the submenu is open when the item is initially rendered. */
-  defaultSubmenuOpen: propTypes.bool,
+  /**
+   * Whether the submenu for this group is expanded.
+   */
+  isExpanded: propTypes.bool,
+
+  /**
+   * Callback invoked to expand or collapse the current group.
+   *
+   * @type {(expand: boolean) => any}
+   */
+  onExpand: propTypes.func,
 
   // Injected services.
   analytics: propTypes.object.isRequired,
   groups: propTypes.object.isRequired,
+  toastMessenger: propTypes.object.isRequired,
 };
 
-GroupListItem.injectedProps = ['analytics', 'groups'];
+GroupListItem.injectedProps = ['analytics', 'groups', 'toastMessenger'];
 
-module.exports = withServices(GroupListItem);
+export default withServices(GroupListItem);

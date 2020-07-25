@@ -1,8 +1,6 @@
-'use strict';
+import fetchMock from 'fetch-mock';
 
-const fetchMock = require('fetch-mock');
-
-const apiFactory = require('../api');
+import apiFactory from '../api';
 
 // API route directory.
 //
@@ -15,14 +13,14 @@ const apiFactory = require('../api');
 //
 const routes = require('./api-index.json').links;
 
-describe('sidebar.services.api', function() {
+describe('sidebar.services.api', function () {
   let fakeAuth;
   let fakeStore;
   let api;
 
   function defaultBodyForStatus(status) {
     if (status === 204) {
-      return '';
+      return null;
     } else if (status >= 500) {
       return '<html><body>Internal Server Error</body></html>';
     } else {
@@ -177,7 +175,8 @@ describe('sidebar.services.api', function() {
         // Network error
         status: null,
         body: 'Service unreachable.',
-        expectedMessage: 'Service unreachable.',
+        expectedMessage:
+          "Fetch operation failed for URL 'https://example.com/api/profile'",
       },
       {
         // Request failed with an error given in the JSON body

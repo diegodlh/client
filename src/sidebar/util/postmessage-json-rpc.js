@@ -1,6 +1,4 @@
-'use strict';
-
-const { generateHexString } = require('./random');
+import { generateHexString } from './random';
 
 /** Generate a random ID to associate RPC requests and responses. */
 function generateId() {
@@ -23,12 +21,12 @@ function createTimeout(delay, message) {
  * @param {string} origin - Origin filter for `window.postMessage` call
  * @param {string} method - Name of the JSON-RPC method
  * @param {any[]} params - Parameters of the JSON-RPC method
- * @param [number] timeout - Maximum time to wait in ms
- * @param [Window] window_ - Test seam.
- * @param [id] id - Test seam.
+ * @param {number} [timeout] - Maximum time to wait in ms
+ * @param {Window} [window_] - Test seam.
+ * @param {string} [id] - Test seam.
  * @return {Promise<any>} - A Promise for the response to the call
  */
-function call(
+export function call(
   frame,
   origin,
   method,
@@ -81,14 +79,16 @@ function call(
     window_.addEventListener('message', listener);
   });
 
-  const timeoutExpired = createTimeout(
-    timeout,
-    `Request to ${origin} timed out`
-  );
+  const responseOrTimeout = [response];
+  if (timeout) {
+    responseOrTimeout.push(
+      createTimeout(timeout, `Request to ${origin} timed out`)
+    );
+  }
 
   // Cleanup and return.
   // FIXME: If we added a `Promise.finally` polyfill we could simplify this.
-  return Promise.race([response, timeoutExpired])
+  return Promise.race(responseOrTimeout)
     .then(result => {
       window_.removeEventListener('message', listener);
       return result;
@@ -98,7 +98,3 @@ function call(
       throw err;
     });
 }
-
-module.exports = {
-  call,
-};

@@ -1,11 +1,14 @@
-@import '../../base';
-@import '../../mixins/responsive';
+@use "../../mixins/buttons";
+@use "../../mixins/layout";
+@use "../../mixins/utils";
+@use "../../variables" as var;
 
 .top-bar {
-  background: $white;
-  border-bottom: solid 1px $gray-lighter;
-  height: $top-bar-height;
-  font-size: 15px;
+  @include utils.font--large;
+  @include utils.border-bottom;
+  color: var.$grey-mid;
+  background: var.$white;
+  height: var.$top-bar-height;
   position: absolute;
   left: 0;
   right: 0;
@@ -15,21 +18,81 @@
   // Force top-bar onto a new compositor layer so that it does not judder when
   // the window is scrolled.
   transform: translate3d(0, 0, 0);
+
+  &__icon-button {
+    @include buttons.button--icon-only;
+    padding: 0.25em;
+    @media (pointer: coarse) {
+      // Until the top bar can be refactored to allow for breathing room around
+      // the search interface, we can't spare the room for comfortable tap targets
+      // on touchscreen devices. This overrides `Button`'s larger tap targets.
+      min-width: auto;
+      min-height: auto;
+    }
+  }
+
+  &__icon-button {
+    color: var.$grey-mid;
+
+    &.is-active {
+      color: var.$grey-7;
+
+      &:hover {
+        color: var.$grey-7;
+      }
+    }
+  }
+
+  &__icon-button--refresh {
+    color: var.$color-brand;
+
+    &:hover {
+      color: var.$color-brand;
+    }
+  }
+
+  &__menu-label {
+    padding: var.$layout-space--xxsmall;
+  }
 }
 
 .top-bar--theme-clean {
   border-bottom: none;
 }
 
+.top-bar__login-button {
+  @include buttons.button;
+  @include utils.font--large;
+  padding: 0 var.$layout-space--xxsmall;
+  color: var.$color-brand;
+
+  &:hover {
+    color: var.$color-link-hover;
+  }
+
+  @media (pointer: coarse) {
+    min-width: inherit;
+    min-height: inherit;
+  }
+}
+
+.top-bar__login-links {
+  @include layout.row;
+  flex-shrink: 0;
+}
+
 .top-bar__inner {
+  @include layout.sidebar-content;
+  @include layout.row(right, center);
+
+  // FIXME: This odd font size rule is because the spinner uses a `1em` dimension
+  // and we want to assure it displays at the same dimensions as the other icons
+  // in this top bar
+  font-size: var.$icon-size--medium;
+
   // the edges of the top-bar's contents should be aligned
   // with the edges of annotation cards displayed below
   $h-padding: 9px;
-
-  display: flex;
-  flex-flow: row nowrap;
-  align-items: center;
-  justify-content: flex-end;
 
   padding-left: $h-padding;
   padding-right: $h-padding;
@@ -41,64 +104,4 @@
   justify-self: flex-start;
   margin-right: auto;
   white-space: nowrap;
-}
-
-// an expander which adds spacing between the groups list
-// and the toolbar icons (in the new top-bar design)
-.top-bar__expander {
-  flex-grow: 1;
-}
-
-// Removes the native styling from a <button> element
-@mixin reset-native-btn-styles {
-  @include outline-on-keyboard-focus;
-
-  padding: 0px;
-  margin: 0px;
-  background-color: transparent;
-  border-style: none;
-}
-
-.top-bar__btn {
-  @include reset-native-btn-styles;
-
-  height: 100%;
-  color: $gray-light;
-  display: inline-block;
-  cursor: pointer;
-  padding: 1px 3px 0 3px;
-
-  &:hover {
-    color: $gray-dark;
-  }
-}
-
-// Button which indicates that other users have made or edited annotations
-// on the current page and applies them when clicked
-//
-// The button displays a 'refresh' icon and an update count, both of which
-// should be vertically centered within the icon.
-.top-bar__apply-update-btn {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  flex-shrink: 0;
-  margin-right: 5px;
-
-  border-radius: 2px;
-  color: white;
-  cursor: pointer;
-  font-weight: bold;
-  padding-bottom: 2px;
-  padding-top: 2px;
-  user-select: none;
-}
-
-.top-bar__apply-icon {
-  display: inline-block;
-  line-height: 12px;
-}
-
-.top-bar__dropdown-arrow {
-  color: $color-dove-gray;
 }

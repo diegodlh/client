@@ -1,6 +1,8 @@
-'use strict';
+import immutable from './immutable';
 
-const immutable = require('seamless-immutable');
+/**
+ * @typedef {import('../../types/api').Group} Group
+ */
 
 // TODO: Update when this is a property available on the API response
 const DEFAULT_ORG_ID = '__default__';
@@ -81,7 +83,7 @@ function organizations(groups) {
  * @param {Array<Group>} groups
  * @return {Array<Object>} - groups sorted by which organization they're in
  */
-function groupsByOrganization(groups) {
+export default function groupsByOrganization(groups) {
   const orgs = organizations(groups);
   const defaultOrganizationGroups = [];
   const sortedGroups = [];
@@ -103,5 +105,3 @@ function groupsByOrganization(groups) {
 
   return sortedGroups;
 }
-
-module.exports = groupsByOrganization;

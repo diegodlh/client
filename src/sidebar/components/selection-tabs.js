@@ -1,49 +1,190 @@
-'use strict';
+import classnames from 'classnames';
+import { createElement } from 'preact';
+import propTypes from 'prop-types';
 
-const sessionUtil = require('../util/session-util');
-const uiConstants = require('../ui-constants');
+import useStore from '../store/use-store';
+import uiConstants from '../ui-constants';
+import { withServices } from '../util/service-context';
 
-module.exports = {
-  controllerAs: 'vm',
-  //@ngInject
-  controller: function($element, store, features, session, settings) {
-    this.TAB_ANNOTATIONS = uiConstants.TAB_ANNOTATIONS;
-    this.TAB_NOTES = uiConstants.TAB_NOTES;
-    this.TAB_ORPHANS = uiConstants.TAB_ORPHANS;
+import NewNoteBtn from './new-note-btn';
+import SvgIcon from '../../shared/components/svg-icon';
 
-    this.isThemeClean = settings.theme === 'clean';
+/**
+ *  Display name of the tab and annotation count.
+ */
+function Tab({
+  children,
+  count,
+  isWaitingToAnchor,
+  isSelected,
+  label,
+  onSelect,
+}) {
+  const selectTab = () => {
+    if (!isSelected) {
+      onSelect();
+    }
+  };
 
-    this.enableExperimentalNewNoteButton =
-      settings.enableExperimentalNewNoteButton;
+  const title = count > 0 ? `${label} (${count} available)` : label;
 
-    this.selectTab = function(type) {
-      store.clearSelectedAnnotations();
-      store.selectTab(type);
-    };
+  return (
+    <div>
+      <button
+        className={classnames('selection-tabs__type', {
+          'is-selected': isSelected,
+        })}
+        // Listen for `onMouseDown` so that the tab is selected when _pressed_
+        // as this makes the UI feel faster. Also listen for `onClick` as a fallback
+        // to enable selecting the tab via other input methods.
+        onClick={selectTab}
+        onMouseDown={selectTab}
+        role="tab"
+        tabIndex="0"
+        title={title}
+        aria-label={title}
+        aria-selected={isSelected.toString()}
+      >
+        {children}
+        {count > 0 && !isWaitingToAnchor && (
+          <span className="selection-tabs__count"> {count}</span>
+        )}
+      </button>
+    </div>
+  );
+}
 
-    this.showAnnotationsUnavailableMessage = function() {
-      return (
-        this.selectedTab === this.TAB_ANNOTATIONS &&
-        this.totalAnnotations === 0 &&
-        !this.isWaitingToAnchorAnnotations
-      );
-    };
-
-    this.showNotesUnavailableMessage = function() {
-      return this.selectedTab === this.TAB_NOTES && this.totalNotes === 0;
-    };
-
-    this.showSidebarTutorial = function() {
-      return sessionUtil.shouldShowSidebarTutorial(session.state);
-    };
-  },
-  bindings: {
-    isLoading: '<',
-    isWaitingToAnchorAnnotations: '<',
-    selectedTab: '<',
-    totalAnnotations: '<',
-    totalNotes: '<',
-    totalOrphans: '<',
-  },
-  template: require('../templates/selection-tabs.html'),
+Tab.propTypes = {
+  /**
+   * Child components.
+   */
+  children: propTypes.node.isRequired,
+  /**
+   * The total annotations for this tab.
+   */
+  count: propTypes.number.isRequired,
+  /**
+   * Is this tab currently selected?
+   */
+  isSelected: propTypes.bool.isRequired,
+  /**
+   * Are there any annotations still waiting to anchor?
+   */
+  isWaitingToAnchor: propTypes.bool.isRequired,
+  /**
+   * A string label to use for `aria-label` and `title`
+   */
+  label: propTypes.string.isRequired,
+  /**
+   * Callback to invoke when this tab is selected.
+   */
+  onSelect: propTypes.func.isRequired,
 };
+
+/**
+ *  Tabbed display of annotations and notes.
+ */
+
+function SelectionTabs({ isLoading, settings }) {
+  const selectedTab = useStore(store => store.getState().selection.selectedTab);
+  const noteCount = useStore(store => store.noteCount());
+  const annotationCount = useStore(store => store.annotationCount());
+  const orphanCount = useStore(store => store.orphanCount());
+  const isWaitingToAnchorAnnotations = useStore(store =>
+    store.isWaitingToAnchorAnnotations()
+  );
+  // actions
+  const store = useStore(store => ({
+    clearSelectedAnnotations: store.clearSelectedAnnotations,
+    selectTab: store.selectTab,
+  }));
+
+  const isThemeClean = settings.theme === 'clean';
+
+  const selectTab = tabId => {
+    store.clearSelectedAnnotations();
+    store.selectTab(tabId);
+  };
+
+  const showAnnotationsUnavailableMessage =
+    selectedTab === uiConstants.TAB_ANNOTATIONS &&
+    annotationCount === 0 &&
+    !isWaitingToAnchorAnnotations;
+
+  const showNotesUnavailableMessage =
+    selectedTab === uiConstants.TAB_NOTES && noteCount === 0;
+
+  return (
+    <div className="selection-tabs-container">
+      <div
+        className={classnames('selection-tabs', {
+          'selection-tabs--theme-clean': isThemeClean,
+        })}
+        role="tablist"
+      >
+        <Tab
+          count={annotationCount}
+          isWaitingToAnchor={isWaitingToAnchorAnnotations}
+          isSelected={selectedTab === uiConstants.TAB_ANNOTATIONS}
+          label="Annotations"
+          onSelect={() => selectTab(uiConstants.TAB_ANNOTATIONS)}
+        >
+          Annotations
+        </Tab>
+        <Tab
+          count={noteCount}
+          isWaitingToAnchor={isWaitingToAnchorAnnotations}
+          isSelected={selectedTab === uiConstants.TAB_NOTES}
+          label="Page notes"
+          onSelect={() => selectTab(uiConstants.TAB_NOTES)}
+        >
+          Page Notes
+        </Tab>
+        {orphanCount > 0 && (
+          <Tab
+            count={orphanCount}
+            isWaitingToAnchor={isWaitingToAnchorAnnotations}
+            isSelected={selectedTab === uiConstants.TAB_ORPHANS}
+            label="Orphans"
+            onSelect={() => selectTab(uiConstants.TAB_ORPHANS)}
+          >
+            Orphans
+          </Tab>
+        )}
+      </div>
+      {selectedTab === uiConstants.TAB_NOTES &&
+        settings.enableExperimentalNewNoteButton && <NewNoteBtn />}
+      {!isLoading && showNotesUnavailableMessage && (
+        <div className="selection-tabs__message">
+          There are no page notes in this group.
+        </div>
+      )}
+      {!isLoading && showAnnotationsUnavailableMessage && (
+        <div className="selection-tabs__message">
+          There are no annotations in this group.
+          <br />
+          Create one by selecting some text and clicking the{' '}
+          <SvgIcon
+            name="annotate"
+            inline={true}
+            className="selection-tabs__icon"
+          />{' '}
+          button.
+        </div>
+      )}
+    </div>
+  );
+}
+SelectionTabs.propTypes = {
+  /**
+   * Are we waiting on any annotations from the server?
+   */
+  isLoading: propTypes.bool.isRequired,
+
+  // Injected services.
+  settings: propTypes.object.isRequired,
+};
+
+SelectionTabs.injectedProps = ['settings'];
+
+export default withServices(SelectionTabs);

@@ -1,273 +1,304 @@
-'use strict';
+import { mount } from 'enzyme';
+import { createElement } from 'preact';
 
-const angular = require('angular');
+import * as fixtures from '../../test/annotation-fixtures';
+import AnnotationHeader from '../annotation-header';
+import { $imports } from '../annotation-header';
 
-const fixtures = require('../../test/annotation-fixtures');
-const annotationHeader = require('../annotation-header');
+import { checkAccessibility } from '../../../test-util/accessibility';
+import mockImportedComponents from '../../../test-util/mock-imported-components';
 
-const fakeDocumentMeta = {
-  domain: 'docs.io',
-  titleLink: 'http://docs.io/doc.html',
-  titleText: 'Dummy title',
-};
+describe('AnnotationHeader', () => {
+  let fakeIsHighlight;
+  let fakeIsReply;
+  let fakeIsPrivate;
+  let fakeStore;
 
-describe('sidebar.components.annotation-header', function() {
-  let $componentController;
-  let fakeFeatures;
-  let fakeGroups;
-  let fakeAccountID;
-  const fakeSettings = { usernameUrl: 'http://www.example.org/' };
-  let fakeServiceUrl;
+  const createAnnotationHeader = props => {
+    return mount(
+      <AnnotationHeader
+        annotation={fixtures.defaultAnnotation()}
+        isEditing={false}
+        replyCount={0}
+        showDocumentInfo={false}
+        threadIsCollapsed={false}
+        {...props}
+      />
+    );
+  };
 
-  beforeEach('Initialize fakeAccountID', () => {
-    fakeAccountID = {
-      isThirdPartyUser: sinon.stub().returns(false),
-      username: sinon.stub().returns('TEST_USERNAME'),
+  beforeEach(() => {
+    fakeIsHighlight = sinon.stub().returns(false);
+    fakeIsReply = sinon.stub().returns(false);
+    fakeIsPrivate = sinon.stub();
+
+    fakeStore = {
+      setCollapsed: sinon.stub(),
     };
-  });
 
-  beforeEach('Import and register the annotationHeader component', function() {
-    annotationHeader.$imports.$mock({
-      '../annotation-metadata': {
-        // eslint-disable-next-line no-unused-vars
-        domainAndTitle: function(ann) {
-          return fakeDocumentMeta;
-        },
+    $imports.$mock(mockImportedComponents());
+    $imports.$mock({
+      '../store/use-store': callback => callback(fakeStore),
+      '../util/annotation-metadata': {
+        isHighlight: fakeIsHighlight,
+        isReply: fakeIsReply,
       },
-      '../util/account-id': fakeAccountID,
+      '../util/permissions': {
+        isPrivate: fakeIsPrivate,
+      },
     });
-    angular.module('app', []).component('annotationHeader', annotationHeader);
   });
 
   afterEach(() => {
-    annotationHeader.$imports.$restore();
+    $imports.$restore();
   });
 
-  beforeEach('Initialize and register fake AngularJS dependencies', function() {
-    fakeFeatures = {
-      flagEnabled: sinon.stub().returns(false),
-    };
+  describe('only me icon', () => {
+    it('should render an "Only Me" icon if the annotation is private', () => {
+      fakeIsPrivate.returns(true);
 
-    angular.mock.module('app', {
-      features: fakeFeatures,
-      groups: fakeGroups,
-      settings: fakeSettings,
-      serviceUrl: fakeServiceUrl,
+      const wrapper = createAnnotationHeader();
+
+      assert.isTrue(wrapper.find('SvgIcon').filter({ name: 'lock' }).exists());
     });
+    it('should not render an "Only Me" icon if the annotation is not private', () => {
+      fakeIsPrivate.returns(false);
 
-    angular.mock.inject(function(_$componentController_) {
-      $componentController = _$componentController_;
+      const wrapper = createAnnotationHeader();
+
+      assert.isFalse(wrapper.find('SvgIcon').filter({ name: 'lock' }).exists());
     });
   });
 
-  describe('sidebar.components.AnnotationHeaderController', function() {
-    describe('#htmlLink()', function() {
-      it('returns the HTML link when available', function() {
-        const ann = fixtures.defaultAnnotation();
-        ann.links = { html: 'https://annotation.service/123' };
-        const ctrl = $componentController(
-          'annotationHeader',
-          {},
-          {
-            annotation: ann,
-          }
-        );
-        assert.equal(ctrl.htmlLink(), ann.links.html);
+  describe('expand replies toggle button', () => {
+    const findReplyButton = wrapper =>
+      wrapper.find('Button').filter('.annotation-header__reply-toggle');
+
+    it('should render if annotation is a collapsed reply and there are replies to show', () => {
+      fakeIsReply.returns(true);
+      const wrapper = createAnnotationHeader({
+        replyCount: 1,
+        threadIsCollapsed: true,
       });
 
-      it('returns an empty string when no HTML link is available', function() {
-        const ann = fixtures.defaultAnnotation();
-        ann.links = {};
-        const ctrl = $componentController(
-          'annotationHeader',
-          {},
-          {
-            annotation: ann,
-          }
-        );
-        assert.equal(ctrl.htmlLink(), '');
-      });
+      const btn = findReplyButton(wrapper);
+      assert.isTrue(btn.exists());
     });
 
-    describe('#documentMeta()', function() {
-      it('returns the domain, title link and text for the annotation', function() {
-        const ann = fixtures.defaultAnnotation();
-        const ctrl = $componentController(
-          'annotationHeader',
-          {},
-          {
-            annotation: ann,
-          }
-        );
-        assert.deepEqual(ctrl.documentMeta(), fakeDocumentMeta);
+    it('should expand replies when clicked', () => {
+      fakeIsReply.returns(true);
+      const fakeAnnotation = fixtures.defaultAnnotation();
+      const wrapper = createAnnotationHeader({
+        annotation: fakeAnnotation,
+        replyCount: 1,
+        threadIsCollapsed: true,
       });
+
+      const btn = findReplyButton(wrapper);
+      btn.props().onClick();
+
+      assert.calledOnce(fakeStore.setCollapsed);
+      assert.calledWith(fakeStore.setCollapsed, fakeAnnotation.id, false);
     });
 
-    describe('#displayName', () => {
-      [
-        {
-          context:
-            'when the api_render_user_info feature flag is turned off in h',
-          it: 'returns the username',
-          user_info: undefined,
-          client_display_names: false,
-          isThirdPartyUser: false,
-          expectedResult: 'TEST_USERNAME',
-        },
-        {
-          context:
-            'when the api_render_user_info feature flag is turned off in h',
-          it:
-            'returns the username even if the client_display_names feature flag is on',
-          user_info: undefined,
-          client_display_names: true,
-          isThirdPartyUser: false,
-          expectedResult: 'TEST_USERNAME',
-        },
-        {
-          context: 'when the client_display_names feature flag is off in h',
-          it: 'returns the username',
-          user_info: { display_name: null },
-          client_display_names: false,
-          isThirdPartyUser: false,
-          expectedResult: 'TEST_USERNAME',
-        },
-        {
-          context: 'when the client_display_names feature flag is off in h',
-          it: 'returns the username even if the user has a display name',
-          user_info: { display_name: 'Bill Jones' },
-          client_display_names: false,
-          isThirdPartyUser: false,
-          expectedResult: 'TEST_USERNAME',
-        },
-        {
-          context:
-            'when both feature flags api_render_user_info and ' +
-            'client_display_names are on',
-          it: 'returns the username, if the user has no display_name',
-          user_info: { display_name: null },
-          client_display_names: true,
-          isThirdPartyUser: false,
-          expectedResult: 'TEST_USERNAME',
-        },
-        {
-          context:
-            'when both feature flags api_render_user_info and ' +
-            'client_display_names are on',
-          it: 'returns the display_name, if the user has one',
-          user_info: { display_name: 'Bill Jones' },
-          client_display_names: true,
-          isThirdPartyUser: false,
-          expectedResult: 'Bill Jones',
-        },
-        {
-          context:
-            'when the client_display_names feature flag is off but ' +
-            'the user is a third-party user',
-          it: 'returns display_name even though client_display_names is off',
-          user_info: { display_name: 'Bill Jones' },
-          client_display_names: false,
-          isThirdPartyUser: true,
-          expectedResult: 'Bill Jones',
-        },
-        {
-          context:
-            'when client_display_names is on and the user is a ' +
-            'third-party user',
-          it: 'returns the display_name',
-          user_info: { display_name: 'Bill Jones' },
-          client_display_names: true,
-          isThirdPartyUser: true,
-          expectedResult: 'Bill Jones',
-        },
-        {
-          context:
-            'when the user is a third-party user but the ' +
-            'api_render_user_info feature flag is turned off in h',
-          it: 'returns the username',
-          user_info: undefined,
-          client_display_names: true,
-          isThirdPartyUser: true,
-          expectedResult: 'TEST_USERNAME',
-        },
-        {
-          context:
-            "when the user is a third-party user but doesn't have a " +
-            'display_name',
-          it: 'returns the username',
-          user_info: { display_name: null },
-          client_display_names: true,
-          isThirdPartyUser: true,
-          expectedResult: 'TEST_USERNAME',
-        },
-      ].forEach(test => {
-        context(test.context, () => {
-          it(test.it, () => {
-            // Make features.flagEnabled('client_display_names') return true
-            // or false, depending on the test case.
-            fakeFeatures.flagEnabled = flag => {
-              if (flag === 'client_display_names') {
-                return test.client_display_names;
-              }
-              return false;
-            };
+    it('should not render if there are no replies to show', () => {
+      fakeIsReply.returns(true);
+      const wrapper = createAnnotationHeader({
+        threadIsCollapsed: true,
+        replyCount: 0,
+      });
+      const btn = findReplyButton(wrapper);
+      assert.isFalse(btn.exists());
+    });
 
-            // Make isThirdPartyUser() return true or false,
-            // depending on the test case.
-            fakeAccountID.isThirdPartyUser.returns(test.isThirdPartyUser);
+    it('should not render if annotation is not a reply', () => {
+      fakeIsReply.returns(false);
+      const wrapper = createAnnotationHeader({
+        threadIsCollapsed: true,
+      });
+      const btn = findReplyButton(wrapper);
+      assert.isFalse(btn.exists());
+    });
 
-            const ann = fixtures.defaultAnnotation();
-            ann.user_info = test.user_info;
+    it('should not render if thread is not collapsed', () => {
+      fakeIsReply.returns(true);
+      const wrapper = createAnnotationHeader({
+        threadIsCollapsed: false,
+      });
+      const btn = findReplyButton(wrapper);
+      assert.isFalse(btn.exists());
+    });
 
-            const ctrl = $componentController(
-              'annotationHeader',
-              {},
-              {
-                annotation: ann,
-              }
-            );
-
-            assert.equal(ctrl.displayName(), test.expectedResult);
-          });
+    [
+      {
+        replyCount: 1,
+        expected: '1 reply',
+      },
+      {
+        replyCount: 2,
+        expected: '2 replies',
+      },
+    ].forEach(testCase => {
+      it(`it should render the annotation reply count button (${testCase.replyCount})`, () => {
+        fakeIsReply.returns(true);
+        const wrapper = createAnnotationHeader({
+          replyCount: testCase.replyCount,
+          threadIsCollapsed: true,
         });
-      });
-    });
-
-    describe('#thirdPartyUsernameLink', () => {
-      it('returns the custom username link if set', () => {
-        let ann;
-        let ctrl;
-
-        fakeSettings.usernameUrl = 'http://www.example.org/';
-        ann = fixtures.defaultAnnotation();
-        ctrl = $componentController(
-          'annotationHeader',
-          {},
-          {
-            annotation: ann,
-          }
-        );
-        assert.deepEqual(
-          ctrl.thirdPartyUsernameLink(),
-          'http://www.example.org/TEST_USERNAME'
-        );
-      });
-
-      it('returns null if no custom username link is set in the settings object', () => {
-        let ann;
-        let ctrl;
-
-        fakeSettings.usernameUrl = null;
-        ann = fixtures.defaultAnnotation();
-        ctrl = $componentController(
-          'annotationHeader',
-          {},
-          {
-            annotation: ann,
-          }
-        );
-        assert.deepEqual(ctrl.thirdPartyUsernameLink(), null);
+        const replyCollapseButton = findReplyButton(wrapper);
+        assert.equal(replyCollapseButton.props().buttonText, testCase.expected);
       });
     });
   });
+
+  describe('timestamps', () => {
+    it('should render timestamp container element if annotation has a `created` value', () => {
+      const wrapper = createAnnotationHeader();
+      const timestamp = wrapper.find('.annotation-header__timestamp');
+
+      assert.isTrue(timestamp.exists());
+    });
+
+    it('should render edited timestamp if annotation has been edited', () => {
+      const annotation = fixtures.defaultAnnotation();
+      annotation.updated = '2018-05-10T20:18:56.613388+00:00';
+
+      const wrapper = createAnnotationHeader({
+        annotation: annotation,
+      });
+      const timestamp = wrapper
+        .find('Timestamp')
+        .filter('.annotation-header__timestamp-edited-link');
+
+      assert.isTrue(timestamp.exists());
+    });
+
+    it('should not render edited timestamp if annotation has not been edited', () => {
+      // Default annotation's created value is same as updated; as if the annotation
+      // has not been edited before
+      const wrapper = createAnnotationHeader({
+        annotation: fixtures.newAnnotation(),
+      });
+      const timestamp = wrapper
+        .find('Timestamp')
+        .filter('.annotation-header__timestamp-edited-link');
+
+      assert.isFalse(timestamp.exists());
+    });
+
+    it('should not render edited timestamp if annotation is collapsed reply', () => {
+      const annotation = fixtures.defaultAnnotation();
+      annotation.updated = '2018-05-10T20:18:56.613388+00:00';
+      fakeIsReply.returns(true);
+
+      const wrapper = createAnnotationHeader({
+        annotation: annotation,
+        threadIsCollapsed: true,
+      });
+
+      const timestamp = wrapper
+        .find('Timestamp')
+        .filter('.annotation-header__timestamp-edited-link');
+
+      assert.isFalse(timestamp.exists());
+    });
+  });
+
+  describe('extended header information', () => {
+    it('should not render extended header information if annotation is reply', () => {
+      fakeIsReply.returns(true);
+      const wrapper = createAnnotationHeader({
+        showDocumentInfo: true,
+      });
+
+      assert.isFalse(wrapper.find('AnnotationShareInfo').exists());
+      assert.isFalse(wrapper.find('AnnotationDocumentInfo').exists());
+    });
+
+    describe('annotation is-highlight icon', () => {
+      it('should display is-highlight icon if annotation is a highlight', () => {
+        fakeIsHighlight.returns(true);
+        const wrapper = createAnnotationHeader({
+          isEditing: false,
+        });
+        const highlightIcon = wrapper.find('.annotation-header__highlight');
+
+        assert.isTrue(highlightIcon.exists());
+      });
+
+      it('should not display the is-highlight icon if annotation is not a highlight', () => {
+        fakeIsHighlight.returns(false);
+        const wrapper = createAnnotationHeader({
+          isEditing: false,
+        });
+        const highlightIcon = wrapper.find('.annotation-header__highlight');
+
+        assert.isFalse(highlightIcon.exists());
+      });
+    });
+
+    describe('annotation document info', () => {
+      it('should render document info if `showDocumentInfo` is enabled', () => {
+        const wrapper = createAnnotationHeader({ showDocumentInfo: true });
+
+        const documentInfo = wrapper.find('AnnotationDocumentInfo');
+
+        assert.isTrue(documentInfo.exists());
+      });
+
+      it('should not render document info if `showDocumentInfo` is not enabled', () => {
+        const wrapper = createAnnotationHeader({ showDocumentInfo: false });
+
+        const documentInfo = wrapper.find('AnnotationDocumentInfo');
+
+        assert.isFalse(documentInfo.exists());
+      });
+    });
+  });
+
+  context('user is editing annotation', () => {
+    it('should not display timestamp', () => {
+      const wrapper = createAnnotationHeader({
+        annotation: fixtures.defaultAnnotation(),
+        isEditing: true,
+      });
+
+      const timestamp = wrapper.find('Timestamp');
+
+      assert.isFalse(timestamp.exists());
+    });
+
+    it('should not display is-highlight icon', () => {
+      const wrapper = createAnnotationHeader({
+        annotation: fixtures.defaultAnnotation(),
+        isEditing: true,
+        isHighlight: true,
+      });
+      const highlight = wrapper.find('.annotation-header__highlight');
+
+      assert.isFalse(highlight.exists());
+    });
+  });
+
+  it(
+    'should pass a11y checks',
+    checkAccessibility([
+      {
+        name: 'not editing',
+        content: () =>
+          createAnnotationHeader({
+            annotation: fixtures.defaultAnnotation(),
+            isEditing: false,
+          }),
+      },
+      {
+        name: 'editing',
+        content: () =>
+          createAnnotationHeader({
+            annotation: fixtures.defaultAnnotation(),
+            isEditing: true,
+          }),
+      },
+    ])
+  );
 });

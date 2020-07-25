@@ -1,5 +1,3 @@
-'use strict';
-
 let shownWarnings = {};
 
 /**
@@ -13,7 +11,7 @@ let shownWarnings = {};
  *   are concatenated into a string key which is used to determine if the warning
  *   has been logged before.
  */
-function warnOnce(...args) {
+export default function warnOnce(...args) {
   const key = args.join();
   if (key in shownWarnings) {
     return;
@@ -25,5 +23,3 @@ function warnOnce(...args) {
 warnOnce.reset = () => {
   shownWarnings = {};
 };
-
-module.exports = warnOnce;

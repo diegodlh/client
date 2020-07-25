@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Central store of state for the sidebar application, managed using
  * [Redux](http://redux.js.org/).
@@ -31,43 +29,23 @@
  *  3. Checking that the UI correctly presents a given state.
  */
 
-const createStore = require('./create-store');
-const debugMiddleware = require('./debug-middleware');
-
-const activity = require('./modules/activity');
-const annotations = require('./modules/annotations');
-const directLinked = require('./modules/direct-linked');
-const frames = require('./modules/frames');
-const links = require('./modules/links');
-const groups = require('./modules/groups');
-const selection = require('./modules/selection');
-const session = require('./modules/session');
-const viewer = require('./modules/viewer');
-
-/**
- * Redux middleware which triggers an Angular change-detection cycle
- * if no cycle is currently in progress.
- *
- * This ensures that Angular UI components are updated after the UI
- * state changes in response to external inputs (eg. WebSocket messages,
- * messages arriving from other frames in the page, async network responses).
- *
- * See http://redux.js.org/docs/advanced/Middleware.html
- */
-function angularDigestMiddleware($rootScope) {
-  return function(next) {
-    return function(action) {
-      next(action);
-
-      // '$$phase' is set if Angular is in the middle of a digest cycle already
-      if (!$rootScope.$$phase) {
-        // $applyAsync() is similar to $apply() but provides debouncing.
-        // See http://stackoverflow.com/questions/30789177
-        $rootScope.$applyAsync(function() {});
-      }
-    };
-  };
-}
+import createStore from './create-store';
+import debugMiddleware from './debug-middleware';
+import activity from './modules/activity';
+import annotations from './modules/annotations';
+import defaults from './modules/defaults';
+import directLinked from './modules/direct-linked';
+import drafts from './modules/drafts';
+import frames from './modules/frames';
+import groups from './modules/groups';
+import links from './modules/links';
+import realTimeUpdates from './modules/real-time-updates';
+import route from './modules/route';
+import selection from './modules/selection';
+import session from './modules/session';
+import sidebarPanels from './modules/sidebar-panels';
+import toastMessages from './modules/toast-messages';
+import viewer from './modules/viewer';
 
 /**
  * Factory which creates the sidebar app's state store.
@@ -78,24 +56,25 @@ function angularDigestMiddleware($rootScope) {
  * passing the current state of the store.
  */
 // @ngInject
-function store($rootScope, settings) {
-  const middleware = [
-    debugMiddleware,
-    angularDigestMiddleware.bind(null, $rootScope),
-  ];
+export default function store(settings) {
+  const middleware = [debugMiddleware];
 
   const modules = [
     activity,
     annotations,
+    defaults,
     directLinked,
+    drafts,
     frames,
     links,
     groups,
+    realTimeUpdates,
+    route,
     selection,
     session,
+    sidebarPanels,
+    toastMessages,
     viewer,
   ];
   return createStore(modules, [settings], middleware);
 }
-
-module.exports = store;

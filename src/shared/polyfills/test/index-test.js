@@ -1,6 +1,4 @@
-'use strict';
-
-const { requiredPolyfillSets } = require('../');
+import { requiredPolyfillSets } from '../';
 
 function stubOut(obj, property, replacement = undefined) {
   const saved = obj[property];
@@ -37,6 +35,14 @@ describe('shared/polyfills/index', () => {
       {
         set: 'es2017',
         providesMethod: [Object, 'entries'],
+      },
+      {
+        set: 'es2018',
+        providesMethod: [Promise.prototype, 'finally'],
+      },
+      {
+        set: 'es2018',
+        providesMethod: [window, 'Promise'],
       },
       {
         set: 'string.prototype.normalize',

@@ -1,7 +1,4 @@
-'use strict';
-
-const commands = require('../markdown-commands');
-const unroll = require('../../shared/test/util').unroll;
+import * as commands from '../markdown-commands';
 
 /**
  * Convert a string containing '<sel>' and '</sel>' markers
@@ -45,25 +42,25 @@ function formatState(state) {
   );
 }
 
-describe('markdown commands', function() {
-  describe('span formatting', function() {
+describe('markdown commands', function () {
+  describe('span formatting', function () {
     function toggle(state, prefix, suffix, placeholder) {
       prefix = prefix || '**';
       suffix = suffix || '**';
       return commands.toggleSpanStyle(state, prefix, suffix, placeholder);
     }
 
-    it('adds formatting to spans', function() {
+    it('adds formatting to spans', function () {
       const output = toggle(parseState('make <sel>text</sel> bold'));
       assert.equal(formatState(output), 'make **<sel>text</sel>** bold');
     });
 
-    it('removes formatting from spans', function() {
+    it('removes formatting from spans', function () {
       const output = toggle(parseState('make **<sel>text</sel>** bold'));
       assert.equal(formatState(output), 'make <sel>text</sel> bold');
     });
 
-    it('adds formatting to spans when the prefix and suffix differ', function() {
+    it('adds formatting to spans when the prefix and suffix differ', function () {
       const output = toggle(
         parseState('make <sel>math</sel> mathy'),
         '\\(',
@@ -72,7 +69,7 @@ describe('markdown commands', function() {
       assert.equal(formatState(output), 'make \\(<sel>math</sel>\\) mathy');
     });
 
-    it('inserts placeholders if the selection is empty', function() {
+    it('inserts placeholders if the selection is empty', function () {
       const output = toggle(
         parseState('make <sel></sel> bold'),
         '**',
@@ -83,8 +80,8 @@ describe('markdown commands', function() {
     });
   });
 
-  describe('block formatting', function() {
-    const FIXTURES = [
+  describe('block formatting', function () {
+    [
       {
         tag: 'adds formatting to blocks',
         input: 'one\n<sel>two\nthree</sel>\nfour',
@@ -105,57 +102,49 @@ describe('markdown commands', function() {
         input: '<sel></sel>',
         output: '> <sel></sel>',
       },
-    ];
-
-    unroll(
-      '#tag',
-      function(fixture) {
+    ].forEach(fixture => {
+      it(fixture.tag, () => {
         const output = commands.toggleBlockStyle(
           parseState(fixture.input),
           '> '
         );
         assert.equal(formatState(output), fixture.output);
-      },
-      FIXTURES
-    );
+      });
+    });
   });
 
-  describe('link formatting', function() {
-    const linkify = function(text, linkType) {
+  describe('link formatting', function () {
+    const linkify = function (text, linkType) {
       return commands.convertSelectionToLink(parseState(text), linkType);
     };
 
-    unroll(
-      'converts text to links',
-      function(testCase) {
+    [{ selection: 'two' }, { selection: 'jim:smith' }].forEach(testCase => {
+      it('converts text to links', () => {
         const sel = testCase.selection;
         const output = linkify('one <sel>' + sel + '</sel> three');
         assert.equal(
           formatState(output),
           'one [' + sel + '](<sel>http://insert-your-link-here.com</sel>) three'
         );
-      },
-      [{ selection: 'two' }, { selection: 'jim:smith' }]
-    );
+      });
+    });
 
-    unroll(
-      'converts URLs to links',
-      function(testCase) {
+    [
+      { selection: 'http://foobar.com' },
+      { selection: 'https://twitter.com/username' },
+      { selection: ' http://example.com/url-with-a-leading-space' },
+    ].forEach(testCase => {
+      it(`converts URLs to links`, () => {
         const sel = testCase.selection;
         const output = linkify('one <sel>' + sel + '</sel> three');
         assert.equal(
           formatState(output),
           'one [<sel>Description</sel>](' + sel + ') three'
         );
-      },
-      [
-        { selection: 'http://foobar.com' },
-        { selection: 'https://twitter.com/username' },
-        { selection: ' http://example.com/url-with-a-leading-space' },
-      ]
-    );
+      });
+    });
 
-    it('converts URLs to image links', function() {
+    it('converts URLs to image links', function () {
       const output = linkify(
         'one <sel>http://foobar.com</sel> three',
         commands.LinkType.IMAGE_LINK

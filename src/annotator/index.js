@@ -1,25 +1,39 @@
-'use strict';
+/* global process */
 
-const configFrom = require('./config/index');
+import $ from 'jquery';
 
-const $ = require('jquery');
+// Load polyfill for :focus-visible pseudo-class.
+import 'focus-visible';
 
-// Applications
-const Guest = require('./guest');
-const Sidebar = require('./sidebar');
-const PdfSidebar = require('./pdf-sidebar');
+// Enable debug checks for Preact components.
+if (process.env.NODE_ENV !== 'production') {
+  require('preact/debug');
+}
+
+// Load icons.
+import { registerIcons } from '../shared/components/svg-icon';
+import iconSet from './icons';
+registerIcons(iconSet);
+
+import configFrom from './config/index';
+import Guest from './guest';
+import PdfSidebar from './pdf-sidebar';
+import BucketBarPlugin from './plugin/bucket-bar';
+import CrossFramePlugin from './plugin/cross-frame';
+import DocumentPlugin from './plugin/document';
+import PDFPlugin from './plugin/pdf';
+import Sidebar from './sidebar';
 
 const pluginClasses = {
   // UI plugins
-  BucketBar: require('./plugin/bucket-bar'),
-  Toolbar: require('./plugin/toolbar'),
+  BucketBar: BucketBarPlugin,
 
   // Document type plugins
-  PDF: require('./plugin/pdf'),
-  Document: require('./plugin/document'),
+  PDF: PDFPlugin,
+  Document: DocumentPlugin,
 
   // Cross-frame communication
-  CrossFrame: require('./plugin/cross-frame'),
+  CrossFrame: CrossFramePlugin,
 };
 
 const appLinkEl = document.querySelector(
@@ -27,7 +41,7 @@ const appLinkEl = document.querySelector(
 );
 const config = configFrom(window);
 
-$.noConflict(true)(function() {
+$.noConflict(true)(function () {
   let Klass = window.PDFViewerApplication ? PdfSidebar : Sidebar;
 
   if (config.hasOwnProperty('constructor')) {
@@ -51,7 +65,7 @@ $.noConflict(true)(function() {
   config.pluginClasses = pluginClasses;
 
   const annotator = new Klass(document.body, config);
-  appLinkEl.addEventListener('destroy', function() {
+  appLinkEl.addEventListener('destroy', function () {
     appLinkEl.parentElement.removeChild(appLinkEl);
     annotator.destroy();
   });

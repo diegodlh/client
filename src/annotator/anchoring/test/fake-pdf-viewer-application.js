@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Fake implementation of the parts of PDF.js that the Hypothesis client's
  * anchoring interacts with.
@@ -11,7 +9,7 @@
  * each of the relevant classes in PDF.js.
  */
 
-const RenderingStates = require('../../pdfjs-rendering-states');
+import RenderingStates from '../../pdfjs-rendering-states';
 
 /**
  * Create the DOM structure for a page which matches the structure produced by
@@ -130,6 +128,13 @@ class FakePDFViewer {
     return this._content.length;
   }
 
+  /**
+   * Return the `FakePDFPageView` object representing a rendered page or a
+   * placeholder for one.
+   *
+   * During PDF.js startup when the document is still being loaded, this may
+   * return a nullish value even when the PDF page index is valid.
+   */
   getPageView(index) {
     this._checkBounds(index);
     return this._pages[index];
@@ -162,6 +167,14 @@ class FakePDFViewer {
     this._pages.forEach(page => page.dispose());
   }
 
+  /**
+   * Dispatch a DOM event to notify observers that some event has occurred
+   * in the PDF viewer.
+   */
+  notify(eventName) {
+    this._container.dispatchEvent(new Event(eventName, { bubbles: true }));
+  }
+
   _checkBounds(index) {
     if (index < 0 || index >= this._content.length) {
       throw new Error('Invalid page index ' + index.toString());
@@ -184,7 +197,7 @@ class FakePDFViewer {
  *
  * The original is defined at https://github.com/mozilla/pdf.js/blob/master/web/app.js
  */
-class FakePDFViewerApplication {
+export default class FakePDFViewerApplication {
   /**
    * @param {Options} options
    */
@@ -202,5 +215,3 @@ class FakePDFViewerApplication {
     this.pdfViewer.dispose();
   }
 }
-
-module.exports = FakePDFViewerApplication;

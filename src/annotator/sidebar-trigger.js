@@ -1,5 +1,3 @@
-'use strict';
-
 const SIDEBAR_TRIGGER_BTN_ATTR = 'data-hypothesis-trigger';
 
 /**
@@ -10,12 +8,12 @@ const SIDEBAR_TRIGGER_BTN_ATTR = 'data-hypothesis-trigger';
  * @param {Object} showFn - Function which shows the sidebar.
  */
 
-function trigger(rootEl, showFn) {
+export default function trigger(rootEl, showFn) {
   const triggerElems = rootEl.querySelectorAll(
     '[' + SIDEBAR_TRIGGER_BTN_ATTR + ']'
   );
 
-  Array.from(triggerElems).forEach(function(triggerElem) {
+  Array.from(triggerElems).forEach(function (triggerElem) {
     triggerElem.addEventListener('click', handleCommand);
   });
 
@@ -24,5 +22,3 @@ function trigger(rootEl, showFn) {
     event.stopPropagation();
   }
 }
-
-module.exports = trigger;

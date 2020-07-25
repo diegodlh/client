@@ -2,52 +2,36 @@
 
 'use strict';
 
+const { mkdirSync } = require('fs');
 const path = require('path');
 
 const changed = require('gulp-changed');
 const commander = require('commander');
-const debounce = require('lodash.debounce');
+const log = require('fancy-log');
 const gulp = require('gulp');
-const gulpIf = require('gulp-if');
-const gulpUtil = require('gulp-util');
-const postcss = require('gulp-postcss');
-const postcssURL = require('postcss-url');
 const replace = require('gulp-replace');
 const rename = require('gulp-rename');
-const sass = require('gulp-sass');
-const sourcemaps = require('gulp-sourcemaps');
 const through = require('through2');
 
 const createBundle = require('./scripts/gulp/create-bundle');
+const createStyleBundle = require('./scripts/gulp/create-style-bundle');
 const manifest = require('./scripts/gulp/manifest');
 const servePackage = require('./scripts/gulp/serve-package');
 const vendorBundles = require('./scripts/gulp/vendor-bundles');
-const { useSsl } = require('./scripts/gulp/create-server');
 
 const IS_PRODUCTION_BUILD = process.env.NODE_ENV === 'production';
 const SCRIPT_DIR = 'build/scripts';
 const STYLE_DIR = 'build/styles';
 const FONTS_DIR = 'build/fonts';
 const IMAGES_DIR = 'build/images';
-const TEMPLATES_DIR = 'src/sidebar/templates';
-
-// LiveReloadServer instance for sending messages to connected
-// development clients
-let liveReloadServer;
-// List of file paths that changed since the last live-reload
-// notification was dispatched
-let liveReloadChangedFiles = [];
 
 function parseCommandLine() {
   commander
-    // Test configuration.
-    // See https://github.com/karma-runner/karma-mocha#configuration
-    .option('--grep [pattern]', 'Run only tests matching a given pattern')
+    .option(
+      '--grep [pattern]',
+      'Run only tests where filename matches a pattern'
+    )
     .parse(process.argv);
-
-  if (commander.grep) {
-    gulpUtil.log(`Running tests matching pattern /${commander.grep}/`);
-  }
 
   return {
     grep: commander.grep,
@@ -56,19 +40,8 @@ function parseCommandLine() {
 
 const taskArgs = parseCommandLine();
 
-function isSASSFile(file) {
-  return file.path.match(/\.scss$/);
-}
-
-function getEnv(key) {
-  if (!process.env.hasOwnProperty(key)) {
-    throw new Error(`Environment variable ${key} is not set`);
-  }
-  return process.env[key];
-}
-
 /** A list of all modules included in vendor bundles. */
-const vendorModules = Object.keys(vendorBundles.bundles).reduce(function(
+const vendorModules = Object.keys(vendorBundles.bundles).reduce(function (
   deps,
   key
 ) {
@@ -77,9 +50,9 @@ const vendorModules = Object.keys(vendorBundles.bundles).reduce(function(
 []);
 
 // Builds the bundles containing vendor JS code
-gulp.task('build-vendor-js', function() {
+gulp.task('build-vendor-js', function () {
   const finished = [];
-  Object.keys(vendorBundles.bundles).forEach(function(name) {
+  Object.keys(vendorBundles.bundles).forEach(function (name) {
     finished.push(
       createBundle({
         name: name,
@@ -157,9 +130,9 @@ const appBundleConfigs = appBundles.concat(polyfillBundles).map(config => {
 
 gulp.task(
   'build-js',
-  gulp.parallel('build-vendor-js', function() {
+  gulp.parallel('build-vendor-js', function () {
     return Promise.all(
-      appBundleConfigs.map(function(config) {
+      appBundleConfigs.map(function (config) {
         return createBundle(config);
       })
     );
@@ -169,55 +142,38 @@ gulp.task(
 gulp.task(
   'watch-js',
   gulp.series('build-vendor-js', function watchJS() {
-    appBundleConfigs.forEach(function(config) {
+    appBundleConfigs.forEach(function (config) {
       createBundle(config, { watch: true });
     });
   })
 );
 
-const styleFiles = [
+const cssBundles = [
   // H
   './src/styles/annotator/annotator.scss',
   './src/styles/annotator/pdfjs-overrides.scss',
   './src/styles/sidebar/sidebar.scss',
 
   // Vendor
-  './src/styles/vendor/angular-csp.css',
-  './src/styles/vendor/icomoon.css',
   './node_modules/katex/dist/katex.min.css',
-  './node_modules/angular-toastr/dist/angular-toastr.css',
 ];
 
-gulp.task('build-css', function() {
-  // Rewrite font URLs to look for fonts in 'build/fonts' instead of
-  // 'build/styles/fonts'
-  function rewriteCSSURL(asset) {
-    return asset.url.replace(/^fonts\//, '../fonts/');
-  }
-
-  const sassOpts = {
-    outputStyle: IS_PRODUCTION_BUILD ? 'compressed' : 'nested',
-  };
-
-  const cssURLRewriter = postcssURL({
-    url: rewriteCSSURL,
-  });
-
-  return gulp
-    .src(styleFiles)
-    .pipe(sourcemaps.init())
-    .pipe(gulpIf(isSASSFile, sass(sassOpts).on('error', sass.logError)))
-    .pipe(postcss([require('autoprefixer'), cssURLRewriter]))
-    .pipe(sourcemaps.write('.'))
-    .pipe(gulp.dest(STYLE_DIR));
+gulp.task('build-css', function () {
+  mkdirSync(STYLE_DIR, { recursive: true });
+  const bundles = cssBundles.map(entry =>
+    createStyleBundle({
+      input: entry,
+      output: `${STYLE_DIR}/${path.basename(entry, path.extname(entry))}.css`,
+      minify: IS_PRODUCTION_BUILD,
+    })
+  );
+  return Promise.all(bundles);
 });
 
 gulp.task(
   'watch-css',
   gulp.series('build-css', function watchCSS() {
-    const vendorCSS = styleFiles.filter(function(path) {
-      return path.endsWith('.css');
-    });
+    const vendorCSS = cssBundles.filter(path => path.endsWith('.css'));
     const styleFileGlobs = vendorCSS.concat('./src/styles/**/*.scss');
 
     gulp.watch(styleFileGlobs, gulp.task('build-css'));
@@ -230,7 +186,7 @@ const fontFiles = [
   'node_modules/katex/dist/fonts/*.woff2',
 ];
 
-gulp.task('build-fonts', function() {
+gulp.task('build-fonts', function () {
   return gulp
     .src(fontFiles)
     .pipe(changed(FONTS_DIR))
@@ -245,7 +201,7 @@ gulp.task(
 );
 
 const imageFiles = 'src/images/**/*';
-gulp.task('build-images', function() {
+gulp.task('build-images', function () {
   return gulp
     .src(imageFiles)
     .pipe(changed(IMAGES_DIR))
@@ -259,57 +215,8 @@ gulp.task(
   })
 );
 
-gulp.task('watch-templates', function() {
-  gulp.watch(TEMPLATES_DIR + '/*.html', function(file) {
-    liveReloadServer.notifyChanged([file.path]);
-  });
-});
-
 const MANIFEST_SOURCE_FILES =
   'build/@(fonts|images|scripts|styles)/*.@(js|css|woff|jpg|png|svg)';
-
-let prevManifest = {};
-
-/**
- * Return an array of asset paths that changed between
- * two versions of a manifest.
- */
-function changedAssets(prevManifest, newManifest) {
-  return Object.keys(newManifest).filter(function(asset) {
-    return newManifest[asset] !== prevManifest[asset];
-  });
-}
-
-const debouncedLiveReload = debounce(function() {
-  // Notify dev clients about the changed assets. Note: This currently has an
-  // issue that if CSS, JS and templates are all changed in quick succession,
-  // some of the assets might be empty/incomplete files that are still being
-  // generated when this is invoked, causing the reload to fail.
-  //
-  // Live reload notifications are debounced to reduce the likelihood of this
-  // happening.
-  liveReloadServer.notifyChanged(liveReloadChangedFiles);
-  liveReloadChangedFiles = [];
-}, 250);
-
-function triggerLiveReload(changedFiles) {
-  if (!liveReloadServer) {
-    return;
-  }
-  liveReloadChangedFiles = liveReloadChangedFiles.concat(changedFiles);
-  debouncedLiveReload();
-}
-
-/**
- * Return the hostname that should be used when generating URLs to the package
- * content server.
- *
- * Customizing this can be useful when testing the client on different devices
- * than the one the package content server is running on.
- */
-function packageServerHostname() {
-  return process.env.PACKAGE_SERVER_HOSTNAME || 'localhost';
-}
 
 let isFirstBuild = true;
 
@@ -318,26 +225,27 @@ let isFirstBuild = true;
  * the Hypothesis client.
  *
  * @param {Object} manifest - Manifest mapping asset paths to cache-busted URLs
+ * @param {Object} options - Options for generating the boot script
  */
-function generateBootScript(manifest) {
+function generateBootScript(manifest, { usingDevServer = false } = {}) {
   const { version } = require('./package.json');
 
   const defaultSidebarAppUrl = process.env.SIDEBAR_APP_URL
     ? `${process.env.SIDEBAR_APP_URL}`
-    : 'https://hypothes.is/app.html';
+    : '{current_scheme}://{current_host}:5000/app.html';
 
   let defaultAssetRoot;
 
-  if (process.env.NODE_ENV === 'production') {
-    defaultAssetRoot = `https://cdn.hypothes.is/hypothesis/${version}/`;
+  if (process.env.NODE_ENV === 'production' && !usingDevServer) {
+    defaultAssetRoot = 'https://cdn.hypothes.is/hypothesis';
   } else {
-    const scheme = useSsl ? 'https' : 'http';
-    defaultAssetRoot = `${scheme}://${packageServerHostname()}:3001/hypothesis/${version}/`;
+    defaultAssetRoot = '{current_scheme}://{current_host}:3001/hypothesis';
   }
+  defaultAssetRoot = `${defaultAssetRoot}/${version}/`;
 
   if (isFirstBuild) {
-    gulpUtil.log(`Sidebar app URL: ${defaultSidebarAppUrl}`);
-    gulpUtil.log(`Client asset root URL: ${defaultAssetRoot}`);
+    log(`Sidebar app URL: ${defaultSidebarAppUrl}`);
+    log(`Client asset root URL: ${defaultAssetRoot}`);
     isFirstBuild = false;
   }
 
@@ -357,20 +265,16 @@ function generateBootScript(manifest) {
  * Generate a JSON manifest mapping file paths to
  * URLs containing cache-busting query string parameters.
  */
-function generateManifest() {
+function generateManifest(opts) {
   return gulp
     .src(MANIFEST_SOURCE_FILES)
     .pipe(manifest({ name: 'manifest.json' }))
     .pipe(
-      through.obj(function(file, enc, callback) {
-        // Trigger a reload of the client in the dev server at localhost:3000
+      through.obj(function (file, enc, callback) {
         const newManifest = JSON.parse(file.contents.toString());
-        const changed = changedAssets(prevManifest, newManifest);
-        prevManifest = newManifest;
-        triggerLiveReload(changed);
 
         // Expand template vars in boot script bundle
-        generateBootScript(newManifest);
+        generateBootScript(newManifest, opts);
 
         this.push(file);
         callback();
@@ -379,19 +283,22 @@ function generateManifest() {
     .pipe(gulp.dest('build/'));
 }
 
-gulp.task('watch-manifest', function() {
-  gulp.watch(MANIFEST_SOURCE_FILES, { delay: 500 }, generateManifest);
+gulp.task('watch-manifest', function () {
+  gulp.watch(MANIFEST_SOURCE_FILES, { delay: 500 }, function updateManifest() {
+    return generateManifest({ usingDevServer: true });
+  });
 });
 
-gulp.task('serve-package', function() {
-  servePackage(3001, packageServerHostname());
+gulp.task('serve-package', function () {
+  servePackage(3001);
 });
 
-gulp.task('serve-live-reload', function() {
-  const LiveReloadServer = require('./scripts/gulp/live-reload-server');
-  const scheme = useSsl ? 'https' : 'http';
-  liveReloadServer = new LiveReloadServer(3000, {
-    clientUrl: `${scheme}://${packageServerHostname()}:3001/hypothesis`,
+gulp.task('serve-test-pages', function () {
+  const DevServer = require('./scripts/gulp/dev-server');
+  new DevServer(3000, {
+    // The scheme is omitted here as the client asset server will use the same
+    // protcol (HTTP or HTTPS) as the test page server.
+    clientUrl: `//{current_host}:3001/hypothesis`,
   });
 });
 
@@ -407,70 +314,34 @@ gulp.task(
   'watch',
   gulp.parallel(
     'serve-package',
-    'serve-live-reload',
+    'serve-test-pages',
     'watch-js',
     'watch-css',
     'watch-fonts',
     'watch-images',
-    'watch-manifest',
-    'watch-templates'
+    'watch-manifest'
   )
 );
 
-function runKarma(baseConfig, opts, done) {
-  // See https://github.com/karma-runner/karma-mocha#configuration
-  const cliOpts = {
-    client: {
-      mocha: {
-        grep: taskArgs.grep,
-      },
-    },
-  };
-
-  // Work around a bug in Karma 1.10 which causes console log messages not to
-  // be displayed when using a non-default reporter.
-  // See https://github.com/karma-runner/karma/pull/2220
-  const BaseReporter = require('karma/lib/reporters/base');
-  BaseReporter.decoratorFactory.$inject = BaseReporter.decoratorFactory.$inject.map(
-    dep => dep.replace('browserLogOptions', 'browserConsoleLogOptions')
-  );
-
+function runKarma({ singleRun }, done) {
   const karma = require('karma');
   new karma.Server(
-    Object.assign(
-      {},
-      {
-        configFile: path.resolve(__dirname, baseConfig),
-      },
-      cliOpts,
-      opts
-    ),
+    {
+      configFile: path.resolve(__dirname, './src/karma.config.js'),
+      grep: taskArgs.grep,
+      singleRun,
+    },
     done
   ).start();
 }
 
-gulp.task('test', function(callback) {
-  runKarma('./src/karma.config.js', { singleRun: true }, callback);
-});
-
-gulp.task('test-watch', function(callback) {
-  runKarma('./src/karma.config.js', {}, callback);
-});
-
+// Unit and integration testing tasks.
+// Some (eg. a11y) tests rely on CSS bundles, so build these first.
 gulp.task(
-  'upload-sourcemaps',
-  gulp.series('build-js', function() {
-    const uploadToSentry = require('./scripts/gulp/upload-to-sentry');
-
-    const opts = {
-      key: getEnv('SENTRY_API_KEY'),
-      organization: getEnv('SENTRY_ORGANIZATION'),
-    };
-    const projects = getEnv('SENTRY_PROJECTS').split(',');
-    const release = getEnv('SENTRY_RELEASE_VERSION');
-
-    return gulp
-      .src(['build/scripts/*.js', 'build/scripts/*.map'])
-      .pipe(uploadToSentry(opts, projects, release));
-  })
+  'test',
+  gulp.series('build-css', done => runKarma({ singleRun: true }, done))
+);
+gulp.task(
+  'test-watch',
+  gulp.series('build-css', done => runKarma({ singleRun: false }, done))
 );

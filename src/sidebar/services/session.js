@@ -1,16 +1,10 @@
-'use strict';
-
-const events = require('../events');
-const retryUtil = require('../util/retry');
+import serviceConfig from '../service-config';
+import * as retryUtil from '../util/retry';
+import * as sentry from '../util/sentry';
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-/**
- * @typedef Profile
- *
- * An object returned by the API (`GET /api/profile`) containing profile data
- * for the current user.
- */
+/** @typedef {import('../../types/api').Profile} Profile */
 
 /**
  * This service handles fetching the user's profile, updating profile settings
@@ -20,16 +14,13 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
  *
  * @ngInject
  */
-function session(
-  $rootScope,
+export default function session(
   analytics,
   store,
   api,
   auth,
-  flash,
-  raven,
   settings,
-  serviceConfig
+  toastMessenger
 ) {
   // Cache the result of load()
   let lastLoad;
@@ -65,7 +56,7 @@ function session(
       // the /app endpoint.
       lastLoadTime = Date.now();
       lastLoad = retryUtil
-        .retryPromiseOperation(function() {
+        .retryPromiseOperation(function () {
           const authority = getAuthority();
           const opts = {};
           if (authority) {
@@ -73,12 +64,12 @@ function session(
           }
           return api.profile.read(opts);
         }, profileFetchRetryOpts)
-        .then(function(session) {
+        .then(function (session) {
           update(session);
           lastLoadTime = Date.now();
           return session;
         })
-        .catch(function(err) {
+        .catch(function (err) {
           lastLoadTime = null;
           throw err;
         });
@@ -106,27 +97,22 @@ function session(
    * @return {Profile} The updated profile data
    */
   function update(model) {
-    const prevSession = store.getState().session;
+    const prevSession = store.profile();
     const userChanged = model.userid !== prevSession.userid;
 
-    // Update the session model used by the application
-    store.updateSession(model);
+    store.updateProfile(model);
 
     lastLoad = Promise.resolve(model);
     lastLoadTime = Date.now();
 
     if (userChanged) {
-      $rootScope.$broadcast(events.USER_CHANGED, {
-        profile: model,
-      });
-
       // Associate error reports with the current user in Sentry.
       if (model.userid) {
-        raven.setUserInfo({
+        sentry.setUserInfo({
           id: model.userid,
         });
       } else {
-        raven.setUserInfo(undefined);
+        sentry.setUserInfo(null);
       }
     }
 
@@ -144,12 +130,12 @@ function session(
     });
 
     return loggedOut
-      .catch(function(err) {
-        flash.error('Log out failed');
+      .catch(function (err) {
+        toastMessenger.error('Log out failed');
         analytics.track(analytics.events.LOGOUT_FAILURE);
         throw new Error(err);
       })
-      .then(function() {
+      .then(function () {
         analytics.track(analytics.events.LOGOUT_SUCCESS);
       });
   }
@@ -167,7 +153,7 @@ function session(
     return load();
   }
 
-  $rootScope.$on(events.OAUTH_TOKENS_CHANGED, () => {
+  auth.on('oauthTokensChanged', () => {
     reload();
   });
 
@@ -184,11 +170,9 @@ function session(
     // this service. In future, other services which access the session state
     // will do so directly from store or via selector functions
     get state() {
-      return store.getState().session;
+      return store.profile();
     },
 
     update,
   };
 }
-
-module.exports = session;

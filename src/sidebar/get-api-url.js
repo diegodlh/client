@@ -1,6 +1,4 @@
-'use strict';
-
-const serviceConfig = require('./service-config');
+import serviceConfig from './service-config';
 
 /**
  * Function that returns apiUrl from the settings object.
@@ -10,7 +8,7 @@ const serviceConfig = require('./service-config');
  * @throws {Error} If the settings has a service but the service doesn't have an apiUrl
  *
  */
-function getApiUrl(settings) {
+export default function getApiUrl(settings) {
   const service = serviceConfig(settings);
 
   if (service) {
@@ -24,5 +22,3 @@ function getApiUrl(settings) {
   }
   return settings.apiUrl;
 }
-
-module.exports = getApiUrl;

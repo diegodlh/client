@@ -1,9 +1,6 @@
-'use strict';
+import * as queryString from 'query-string';
 
-const get = require('lodash.get');
-const queryString = require('query-string');
-
-const { replaceURLParams } = require('../util/url-util');
+import { replaceURLParams } from '../util/url';
 
 /**
  * Translate the response from a failed API call into an Error-like object.
@@ -22,6 +19,8 @@ function translateResponseToError(response, data) {
 /**
  * Return a shallow clone of `obj` with all client-only properties removed.
  * Client-only properties are marked by a '$' prefix.
+ *
+ * @param {Object} obj
  */
 function stripInternalProperties(obj) {
   const result = {};
@@ -48,7 +47,7 @@ function stripInternalProperties(obj) {
  * Options controlling how an API call is made or processed.
  *
  * @typedef APICallOptions
- * @prop [boolean] includeMetadata - If false (the default), the response is
+ * @prop {boolean} [includeMetadata] - If false (the default), the response is
  *   just the JSON response from the API. If true, the response is an `APIResponse`
  *   containing additional metadata about the request and response.
  */
@@ -56,10 +55,10 @@ function stripInternalProperties(obj) {
 /**
  * Function which makes an API request.
  *
- * @typedef {function} APICallFunction
- * @param [any] params - A map of URL and query string parameters to include with the request.
- * @param [any] data - The body of the request.
- * @param [APICallOptions] options
+ * @callback APICallFunction
+ * @param {any} [params] - A map of URL and query string parameters to include with the request.
+ * @param {any} [data] - The body of the request.
+ * @param {APICallOptions} options
  * @return {Promise<any|APIResponse>}
  */
 
@@ -69,15 +68,23 @@ function stripInternalProperties(obj) {
  * @typedef {Object} APIMethodOptions
  * @prop {() => Promise<string>} getAccessToken -
  *   Function which acquires a valid access token for making an API request.
- * @prop [() => string|null] getClientId -
+ * @prop {() => string|null} getClientId -
  *   Function that returns a per-session client ID to include with the request
  *   or `null`.
- * @prop [() => any] onRequestStarted - Callback invoked when the API request starts.
- * @prop [() => any] onRequestFinished - Callback invoked when the API request finishes.
+ * @prop {() => any} onRequestStarted - Callback invoked when the API request starts.
+ * @prop {() => any} onRequestFinished - Callback invoked when the API request finishes.
  */
 
 // istanbul ignore next
 const noop = () => null;
+
+function get(object, path) {
+  let cursor = object;
+  path.split('.').forEach(segment => {
+    cursor = cursor[segment];
+  });
+  return cursor;
+}
 
 /**
  * Creates a function that will make an API call to a named route.
@@ -98,7 +105,7 @@ function createAPICall(
     onRequestFinished = noop,
   } = {}
 ) {
-  return function(params, data, options = {}) {
+  return function (params, data, options = {}) {
     onRequestStarted();
 
     let accessToken;
@@ -131,6 +138,12 @@ function createAPICall(
           body: data ? JSON.stringify(stripInternalProperties(data)) : null,
           headers,
           method: descriptor.method,
+        }).catch(() => {
+          // Re-throw Fetch errors such that they all "look the same" (different
+          // browsers throw different Errors on Fetch failure). This allows
+          // Fetch failures to be either handled in particular ways higher up
+          // or for them to be ignored in error reporting (see `sentry` config).
+          throw new Error(`Fetch operation failed for URL '${url}'`);
         });
       })
       .then(response => {
@@ -191,7 +204,7 @@ function createAPICall(
  * not use authentication.
  */
 // @ngInject
-function api(apiRoutes, auth, store) {
+export default function api(apiRoutes, auth, store) {
   const links = apiRoutes.routes();
   let clientId = null;
 
@@ -249,5 +262,3 @@ function api(apiRoutes, auth, store) {
     // from the `apiRoutes` service.
   };
 }
-
-module.exports = api;

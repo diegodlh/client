@@ -1,16 +1,15 @@
-'use strict';
+import { createElement } from 'preact';
+import propTypes from 'prop-types';
 
-const { createElement } = require('preact');
-const propTypes = require('prop-types');
+import bridgeEvents from '../../shared/bridge-events';
+import serviceConfig from '../service-config';
+import { isThirdPartyUser } from '../util/account-id';
+import { withServices } from '../util/service-context';
 
-const bridgeEvents = require('../../shared/bridge-events');
-const { isThirdPartyUser } = require('../util/account-id');
-const serviceConfig = require('../service-config');
-const { withServices } = require('../util/service-context');
-
-const Menu = require('./menu');
-const MenuSection = require('./menu-section');
-const MenuItem = require('./menu-item');
+import Menu from './menu';
+import MenuItem from './menu-item';
+import MenuSection from './menu-section';
+import SvgIcon from '../../shared/components/svg-icon';
 
 /**
  * A menu with user and account links.
@@ -44,7 +43,11 @@ function UserMenu({ auth, bridge, onLogout, serviceUrl, settings }) {
     return props;
   })();
 
-  const menuLabel = <i className="h-icon-account top-bar__btn" />;
+  const menuLabel = (
+    <span className="top-bar__menu-label">
+      <SvgIcon name="profile" className="top-bar__menu-icon" />
+    </span>
+  );
   return (
     <div className="user-menu">
       <Menu label={menuLabel} title={auth.displayName} align="right">
@@ -85,4 +88,4 @@ UserMenu.propTypes = {
 
 UserMenu.injectedProps = ['bridge', 'serviceUrl', 'settings'];
 
-module.exports = withServices(UserMenu);
+export default withServices(UserMenu);

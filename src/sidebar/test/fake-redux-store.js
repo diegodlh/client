@@ -1,6 +1,4 @@
-'use strict';
-
-const redux = require('redux');
+import * as redux from 'redux';
 
 /**
  * Utility function that creates a fake Redux store for use in tests.
@@ -13,7 +11,7 @@ const redux = require('redux');
  *        returned store.
  * @return {Object} Redux store
  */
-function fakeStore(initialState, methods) {
+export default function fakeStore(initialState, methods) {
   function update(state, action) {
     if (action.state) {
       return Object.assign({}, state, action.state);
@@ -24,11 +22,9 @@ function fakeStore(initialState, methods) {
 
   const store = redux.createStore(update, initialState);
 
-  store.setState = function(state) {
+  store.setState = function (state) {
     store.dispatch({ type: 'SET_STATE', state: state });
   };
 
   return Object.assign(store, methods);
 }
-
-module.exports = fakeStore;

@@ -1,6 +1,4 @@
-'use strict';
-
-const apiRoutesFactory = require('../api-routes');
+import apiRoutesFactory from '../api-routes';
 
 // Abridged version of the response returned by https://hypothes.is/api,
 // with the domain name changed.
@@ -89,14 +87,6 @@ describe('sidebar.api-routes', () => {
       window.fetch.onFirstCall().returns(httpResponse(500, null));
       return apiRoutes.routes().then(routes => {
         assert.deepEqual(routes, apiIndexResponse.links);
-      });
-    });
-
-    it('sends client version custom request header', () => {
-      return apiRoutes.routes().then(() => {
-        assert.calledWith(window.fetch, fakeSettings.apiUrl, {
-          headers: { 'Hypothesis-Client-Version': '__VERSION__' },
-        });
       });
     });
   });

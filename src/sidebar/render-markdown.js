@@ -1,9 +1,7 @@
-'use strict';
-
-const createDOMPurify = require('dompurify');
-const escapeHtml = require('escape-html');
-const katex = require('katex');
-const showdown = require('showdown');
+import createDOMPurify from 'dompurify';
+import escapeHtml from 'escape-html';
+import * as katex from 'katex';
+import showdown from 'showdown';
 
 const DOMPurify = createDOMPurify(window);
 
@@ -114,7 +112,7 @@ function extractMath(content) {
 }
 
 function insertMath(html, mathBlocks) {
-  return mathBlocks.reduce(function(html, block) {
+  return mathBlocks.reduce(function (html, block) {
     let renderedMath;
     try {
       if (block.inline) {
@@ -131,7 +129,7 @@ function insertMath(html, mathBlocks) {
   }, html);
 }
 
-function renderMathAndMarkdown(markdown) {
+export default function renderMathAndMarkdown(markdown) {
   // KaTeX takes care of escaping its input, so we want to avoid passing its
   // output through the HTML sanitizer. Therefore we first extract the math
   // blocks from the input, render and sanitize the remaining markdown and then
@@ -141,5 +139,3 @@ function renderMathAndMarkdown(markdown) {
   const mathAndMarkdownHTML = insertMath(markdownHTML, mathInfo.mathBlocks);
   return mathAndMarkdownHTML;
 }
-
-module.exports = renderMathAndMarkdown;

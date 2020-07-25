@@ -1,4 +1,4 @@
-'use strict';
+import { normalizeKeyName } from '../../shared/browser-compatibility-utils';
 
 /**
  * Return a set of props that can be applied to a React DOM element to make
@@ -11,14 +11,15 @@
  * @param {Function} handler - Event handler
  * @return {Object} Props to spread into a React element
  */
-function onActivate(role, handler) {
+export function onActivate(role, handler) {
   return {
     // Support mouse activation.
     onClick: handler,
 
     // Support keyboard activation.
-    onKeypress: event => {
-      if (event.key === 'Enter' || event.key === ' ') {
+    onKeyDown: event => {
+      const key = normalizeKeyName(event.key);
+      if (key === 'Enter' || key === ' ') {
         handler(event);
       }
     },
@@ -30,5 +31,3 @@ function onActivate(role, handler) {
     tabIndex: 0,
   };
 }
-
-module.exports = { onActivate };

@@ -1,343 +1,167 @@
-'use strict';
+import { createElement } from 'preact';
+import propTypes from 'prop-types';
+import { useEffect, useRef } from 'preact/hooks';
 
-const SearchClient = require('../search-client');
-const events = require('../events');
-const isThirdPartyService = require('../util/is-third-party-service');
-const tabs = require('../tabs');
-const uiConstants = require('../ui-constants');
+import { withServices } from '../util/service-context';
+import useStore from '../store/use-store';
+import { tabForAnnotation } from '../util/tabs';
+
+import FocusedModeHeader from './focused-mode-header';
+import LoggedOutMessage from './logged-out-message';
+import LoginPromptPanel from './login-prompt-panel';
+import SearchStatusBar from './search-status-bar';
+import SelectionTabs from './selection-tabs';
+import SidebarContentError from './sidebar-content-error';
+import ThreadList from './thread-list';
 
 /**
- * Returns the group ID of the first annotation in `results` whose
- * ID is `annId`.
+ * Render the sidebar and its components
  */
-function getGroupID(annId, results) {
-  const annot = results.find(function(annot) {
-    return annot.id === annId;
-  });
-  if (!annot) {
-    return null;
-  }
-  return annot.group;
-}
-
-// @ngInject
-function SidebarContentController(
-  $scope,
-  analytics,
-  store,
-  annotationMapper,
-  api,
-  drafts,
-  features,
+function SidebarContent({
   frameSync,
-  groups,
-  rootThread,
-  settings,
+  onLogin,
+  onSignUp,
+  loadAnnotationsService,
+  rootThread: rootThreadService,
   streamer,
-  streamFilter
-) {
-  const self = this;
-
-  function thread() {
-    return rootThread.thread(store.getState());
-  }
-
-  const unsubscribeAnnotationUI = store.subscribe(function() {
-    const state = store.getState();
-
-    self.rootThread = thread();
-    self.selectedTab = state.selectedTab;
-
-    const counts = tabs.counts(state.annotations);
-
-    Object.assign(self, {
-      totalNotes: counts.notes,
-      totalAnnotations: counts.annotations,
-      totalOrphans: counts.orphans,
-      waitingToAnchorAnnotations: counts.anchoring > 0,
-    });
-  });
-
-  $scope.$on('$destroy', unsubscribeAnnotationUI);
-
-  function focusAnnotation(annotation) {
-    let highlights = [];
-    if (annotation) {
-      highlights = [annotation.$tag];
-    }
-    frameSync.focusAnnotations(highlights);
-  }
-
-  function scrollToAnnotation(annotation) {
-    if (!annotation) {
-      return;
-    }
-    frameSync.scrollToAnnotation(annotation.$tag);
-  }
-
-  /**
-   * Returns the Annotation object for the first annotation in the
-   * selected annotation set. Note that 'first' refers to the order
-   * of annotations passed to store when selecting annotations,
-   * not the order in which they appear in the document.
-   */
-  function firstSelectedAnnotation() {
-    if (store.getState().selectedAnnotationMap) {
-      const id = Object.keys(store.getState().selectedAnnotationMap)[0];
-      return store.getState().annotations.find(function(annot) {
-        return annot.id === id;
-      });
-    } else {
-      return null;
-    }
-  }
-
-  const searchClients = [];
-
-  function _resetAnnotations() {
-    annotationMapper.unloadAnnotations(store.savedAnnotations());
-  }
-
-  function _loadAnnotationsFor(uris, group) {
-    const searchClient = new SearchClient(api.search, {
-      // If no group is specified, we are fetching annotations from
-      // all groups in order to find out which group contains the selected
-      // annotation, therefore we need to load all chunks before processing
-      // the results
-      incremental: !!group,
-    });
-    searchClients.push(searchClient);
-    searchClient.on('results', function(results) {
-      if (store.hasSelectedAnnotations()) {
-        // Focus the group containing the selected annotation and filter
-        // annotations to those from this group
-        let groupID = getGroupID(store.getFirstSelectedAnnotationId(), results);
-        if (!groupID) {
-          // If the selected annotation is not available, fall back to
-          // loading annotations for the currently focused group
-          groupID = groups.focused().id;
-        }
-        results = results.filter(function(result) {
-          return result.group === groupID;
-        });
-        groups.focus(groupID);
-      }
-
-      if (results.length) {
-        annotationMapper.loadAnnotations(results);
-      }
-    });
-    searchClient.on('end', function() {
-      // Remove client from list of active search clients.
-      //
-      // $evalAsync is required here because search results are emitted
-      // asynchronously. A better solution would be that the loading state is
-      // tracked as part of the app state.
-      $scope.$evalAsync(function() {
-        searchClients.splice(searchClients.indexOf(searchClient), 1);
-      });
-
-      store.frames().forEach(function(frame) {
-        if (0 <= uris.indexOf(frame.uri)) {
-          store.updateFrameAnnotationFetchStatus(frame.uri, true);
-        }
-      });
-    });
-    searchClient.get({ uri: uris, group: group });
-  }
-
-  this.isLoading = function() {
-    if (
-      !store.frames().some(function(frame) {
-        return frame.uri;
-      })
-    ) {
-      // The document's URL isn't known so the document must still be loading.
-      return true;
-    }
-
-    if (searchClients.length > 0) {
-      // We're still waiting for annotation search results from the API.
-      return true;
-    }
-
-    return false;
-  };
-
-  /**
-   * Load annotations for all URLs associated with `frames`.
-   */
-  function loadAnnotations() {
-    _resetAnnotations();
-
-    searchClients.forEach(function(client) {
-      client.cancel();
-    });
-
-    // If there is no selection, load annotations only for the focused group.
-    //
-    // If there is a selection, we load annotations for all groups, find out
-    // which group the first selected annotation is in and then filter the
-    // results on the client by that group.
-    //
-    // In the common case where the total number of annotations on
-    // a page that are visible to the user is not greater than
-    // the batch size, this saves an extra roundtrip to the server
-    // to fetch the selected annotation in order to determine which group
-    // it is in before fetching the remaining annotations.
-    const group = store.hasSelectedAnnotations() ? null : groups.focused().id;
-
-    const searchUris = store.searchUris();
-    if (searchUris.length > 0) {
-      _loadAnnotationsFor(searchUris, group);
-
-      streamFilter.resetFilter().addClause('/uri', 'one_of', searchUris);
-      streamer.setConfig('filter', { filter: streamFilter.getFilter() });
-    }
-  }
-
-  $scope.$on('sidebarOpened', function() {
-    analytics.track(analytics.events.SIDEBAR_OPENED);
-
-    streamer.connect();
-  });
-
-  this.$onInit = () => {
-    // If the user is logged in, we connect nevertheless
-    if (this.auth.status === 'logged-in') {
-      streamer.connect();
-    }
-  };
-
-  $scope.$on(events.USER_CHANGED, function() {
-    streamer.reconnect();
-  });
-
-  $scope.$on(events.ANNOTATIONS_SYNCED, function(event, tags) {
-    // When a direct-linked annotation is successfully anchored in the page,
-    // focus and scroll to it
-    const selectedAnnot = firstSelectedAnnotation();
-    if (!selectedAnnot) {
-      return;
-    }
-    const matchesSelection = tags.some(function(tag) {
-      return tag === selectedAnnot.$tag;
-    });
-    if (!matchesSelection) {
-      return;
-    }
-    focusAnnotation(selectedAnnot);
-    scrollToAnnotation(selectedAnnot);
-
-    store.selectTab(tabs.tabForAnnotation(selectedAnnot));
-  });
-
-  // Re-fetch annotations when focused group, logged-in user or connected frames
-  // change.
-  $scope.$watch(
-    () => [groups.focused(), store.profile().userid, ...store.searchUris()],
-    ([currentGroup], [prevGroup]) => {
-      if (!currentGroup) {
-        // When switching accounts, groups are cleared and so the focused group
-        // will be null for a brief period of time.
-        store.clearSelectedAnnotations();
-        return;
-      }
-
-      if (!prevGroup || currentGroup.id !== prevGroup.id) {
-        // The focused group may be changed during loading annotations as a result
-        // of switching to the group containing a direct-linked annotation.
-        //
-        // In that case, we don't want to trigger reloading annotations again.
-        if (this.isLoading()) {
-          return;
-        }
-        store.clearSelectedAnnotations();
-      }
-
-      loadAnnotations();
-    },
-    true
+}) {
+  const rootThread = useStore(store =>
+    rootThreadService.thread(store.getState())
   );
 
-  this.showSelectedTabs = function() {
-    if (
-      this.selectedAnnotationUnavailable() ||
-      this.selectedGroupUnavailable() ||
-      store.getState().filterQuery
-    ) {
-      return false;
+  // Store state values
+  const focusedGroupId = useStore(store => store.focusedGroupId());
+  const hasAppliedFilter = useStore(store => store.hasAppliedFilter());
+  const isFocusedMode = useStore(store => store.focusModeEnabled());
+  const isLoading = useStore(store => store.isLoading());
+  const isLoggedIn = useStore(store => store.isLoggedIn());
+  const linkedAnnotationId = useStore(store =>
+    store.directLinkedAnnotationId()
+  );
+  const linkedAnnotation = useStore(store => {
+    return linkedAnnotationId
+      ? store.findAnnotationByID(linkedAnnotationId)
+      : undefined;
+  });
+  const directLinkedTab = linkedAnnotation
+    ? tabForAnnotation(linkedAnnotation)
+    : null;
+  const searchUris = useStore(store => store.searchUris());
+  const sidebarHasOpened = useStore(store => store.hasSidebarOpened());
+  const userId = useStore(store => store.profile().userid);
+
+  // The local `$tag` of a direct-linked annotation; populated once it
+  // has anchored: meaning that it's ready to be focused and scrolled to
+  const linkedAnnotationAnchorTag =
+    linkedAnnotation && linkedAnnotation.$orphan === false
+      ? linkedAnnotation.$tag
+      : null;
+
+  // Actions
+  const clearSelectedAnnotations = useStore(
+    store => store.clearSelectedAnnotations
+  );
+  const selectTab = useStore(store => store.selectTab);
+
+  // If, after loading completes, no `linkedAnnotation` object is present when
+  // a `linkedAnnotationId` is set, that indicates an error
+  const hasDirectLinkedAnnotationError =
+    !isLoading && linkedAnnotationId ? !linkedAnnotation : false;
+
+  const hasDirectLinkedGroupError = useStore(store =>
+    store.directLinkedGroupFetchFailed()
+  );
+
+  const hasContentError =
+    hasDirectLinkedAnnotationError || hasDirectLinkedGroupError;
+
+  const showTabs = !hasContentError && !hasAppliedFilter;
+
+  // Show a CTA to log in if successfully viewing a direct-linked annotation
+  // and not logged in
+  const showLoggedOutMessage =
+    linkedAnnotationId &&
+    !isLoggedIn &&
+    !hasDirectLinkedAnnotationError &&
+    !isLoading;
+
+  const prevGroupId = useRef(focusedGroupId);
+
+  // Reload annotations when group, user or document search URIs change
+  useEffect(() => {
+    if (!prevGroupId.current || prevGroupId.current !== focusedGroupId) {
+      // Clear any selected annotations when the group ID changes
+      clearSelectedAnnotations();
+      prevGroupId.current = focusedGroupId;
     }
-    return true;
-  };
-
-  this.setCollapsed = function(id, collapsed) {
-    store.setCollapsed(id, collapsed);
-  };
-
-  this.focus = focusAnnotation;
-  this.scrollTo = scrollToAnnotation;
-
-  this.selectedGroupUnavailable = function() {
-    return !this.isLoading() && store.getState().directLinkedGroupFetchFailed;
-  };
-
-  this.selectedAnnotationUnavailable = function() {
-    const selectedID = store.getFirstSelectedAnnotationId();
-    return (
-      !this.isLoading() && !!selectedID && !store.annotationExists(selectedID)
-    );
-  };
-
-  this.shouldShowLoggedOutMessage = function() {
-    // If user is not logged out, don't show CTA.
-    if (self.auth.status !== 'logged-out') {
-      return false;
+    if (focusedGroupId && searchUris.length) {
+      loadAnnotationsService.load(searchUris, focusedGroupId);
     }
+  }, [
+    clearSelectedAnnotations,
+    loadAnnotationsService,
+    focusedGroupId,
+    userId,
+    searchUris,
+  ]);
 
-    // If user has not landed on a direct linked annotation
-    // don't show the CTA.
-    if (!store.getState().directLinkedAnnotationId) {
-      return false;
+  // When a `linkedAnnotationAnchorTag` becomes available, scroll to it
+  // and focus it
+  useEffect(() => {
+    if (linkedAnnotationAnchorTag) {
+      frameSync.focusAnnotations([linkedAnnotationAnchorTag]);
+      frameSync.scrollToAnnotation(linkedAnnotationAnchorTag);
+      selectTab(directLinkedTab);
     }
+  }, [directLinkedTab, frameSync, linkedAnnotationAnchorTag, selectTab]);
 
-    // The CTA text and links are only applicable when using Hypothesis
-    // accounts.
-    if (isThirdPartyService(settings)) {
-      return false;
+  // Connect to the streamer when the sidebar has opened or if user is logged in
+  useEffect(() => {
+    if (sidebarHasOpened || isLoggedIn) {
+      streamer.connect();
     }
+  }, [streamer, sidebarHasOpened, isLoggedIn]);
 
-    // The user is logged out and has landed on a direct linked
-    // annotation. If there is an annotation selection and that
-    // selection is available to the user, show the CTA.
-    const selectedID = store.getFirstSelectedAnnotationId();
-    return (
-      !this.isLoading() && !!selectedID && store.annotationExists(selectedID)
-    );
-  };
-
-  this.clearSelection = function() {
-    let selectedTab = store.getState().selectedTab;
-    if (
-      !store.getState().selectedTab ||
-      store.getState().selectedTab === uiConstants.TAB_ORPHANS
-    ) {
-      selectedTab = uiConstants.TAB_ANNOTATIONS;
-    }
-
-    store.clearSelectedAnnotations();
-    store.selectTab(selectedTab);
-    store.clearDirectLinkedGroupFetchFailed();
-    store.clearDirectLinkedIds();
-  };
+  return (
+    <div>
+      <h2 className="u-screen-reader-only">Annotations</h2>
+      {isFocusedMode && <FocusedModeHeader />}
+      <LoginPromptPanel onLogin={onLogin} onSignUp={onSignUp} />
+      {hasDirectLinkedAnnotationError && (
+        <SidebarContentError
+          errorType="annotation"
+          onLoginRequest={onLogin}
+          showClearSelection={true}
+        />
+      )}
+      {hasDirectLinkedGroupError && (
+        <SidebarContentError errorType="group" onLoginRequest={onLogin} />
+      )}
+      {showTabs && <SelectionTabs isLoading={isLoading} />}
+      {!hasContentError && <SearchStatusBar />}
+      <ThreadList thread={rootThread} />
+      {showLoggedOutMessage && <LoggedOutMessage onLogin={onLogin} />}
+    </div>
+  );
 }
 
-module.exports = {
-  controller: SidebarContentController,
-  controllerAs: 'vm',
-  bindings: {
-    auth: '<',
-    onLogin: '&',
-  },
-  template: require('../templates/sidebar-content.html'),
+SidebarContent.propTypes = {
+  // Callbacks for log in and out
+  onLogin: propTypes.func.isRequired,
+  onSignUp: propTypes.func.isRequired,
+
+  // Injected
+  frameSync: propTypes.object,
+  loadAnnotationsService: propTypes.object,
+  rootThread: propTypes.object,
+  streamer: propTypes.object,
 };
+
+SidebarContent.injectedProps = [
+  'frameSync',
+  'loadAnnotationsService',
+  'rootThread',
+  'streamer',
+];
+
+export default withServices(SidebarContent);

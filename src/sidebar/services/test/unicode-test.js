@@ -1,6 +1,6 @@
-'use strict';
+import unicodeFactory from '../unicode';
 
-const unicode = require('../unicode')();
+const unicode = unicodeFactory();
 
 describe('unicode', () => {
   describe('#fold', () => {

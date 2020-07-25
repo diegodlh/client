@@ -1,17 +1,27 @@
-'use strict';
+import { mount } from 'enzyme';
+import { createElement } from 'preact';
 
-const { createElement } = require('preact');
-const { shallow } = require('enzyme');
+import MenuSection from '../menu-section';
+import { $imports } from '../menu-section';
 
-const MenuSection = require('../menu-section');
+import { checkAccessibility } from '../../../test-util/accessibility';
+import mockImportedComponents from '../../../test-util/mock-imported-components';
 
 describe('MenuSection', () => {
   const createMenuSection = props =>
-    shallow(
+    mount(
       <MenuSection {...props}>
         <div className="menu-item">Test item</div>
       </MenuSection>
     );
+
+  beforeEach(() => {
+    $imports.$mock(mockImportedComponents());
+  });
+
+  afterEach(() => {
+    $imports.$restore();
+  });
 
   it('renders the heading', () => {
     const wrapper = createMenuSection({ heading: 'A heading' });
@@ -27,4 +37,11 @@ describe('MenuSection', () => {
     const wrapper = createMenuSection();
     assert.isTrue(wrapper.exists('li > .menu-item'));
   });
+
+  it(
+    'should pass a11y checks',
+    checkAccessibility({
+      content: () => createMenuSection(),
+    })
+  );
 });

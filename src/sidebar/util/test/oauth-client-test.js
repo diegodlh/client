@@ -1,11 +1,10 @@
-'use strict';
+import fetchMock from 'fetch-mock';
+import { stringify } from 'query-string';
+import sinon from 'sinon';
 
-const fetchMock = require('fetch-mock');
-const { stringify } = require('query-string');
-const sinon = require('sinon');
+import OAuthClient from '../oauth-client';
 
-const OAuthClient = require('../oauth-client');
-const FakeWindow = require('./fake-window');
+import FakeWindow from './fake-window';
 
 const fixtures = {
   tokenResponse: {

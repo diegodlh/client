@@ -1,5 +1,3 @@
-'use strict';
-
 // Fixtures for anchoring baseline tests. The goals of these tests are to:
 //
 // 1) Check for unexpected changes in the selectors captured when describing
@@ -23,7 +21,7 @@
 //     them as `<fixture name>.json` in this directory
 //  4. Add an entry to the fixture list below.
 
-module.exports = [
+export default [
   {
     name: 'Minimal Document',
     html: require('./minimal.html'),

@@ -1,11 +1,9 @@
-'use strict';
-
 /**
  * Parses H account names of the form 'acct:<username>@<provider>'
  * into a {username, provider} object or null if the input does not
  * match the expected form.
  */
-function parseAccountID(user) {
+export function parseAccountID(user) {
   if (!user) {
     return null;
   }
@@ -21,8 +19,10 @@ function parseAccountID(user) {
 
 /**
  * Returns the username part of an account ID or an empty string.
+ *
+ * @param {string} user
  */
-function username(user) {
+export function username(user) {
   const account = parseAccountID(user);
   if (!account) {
     return '';
@@ -32,8 +32,11 @@ function username(user) {
 
 /**
  * Returns true if the authority is of a 3rd party user.
+ *
+ * @param {string} user
+ * @param {string} authDomain
  */
-function isThirdPartyUser(user, authDomain) {
+export function isThirdPartyUser(user, authDomain) {
   const account = parseAccountID(user);
 
   if (!account) {
@@ -42,9 +45,3 @@ function isThirdPartyUser(user, authDomain) {
 
   return account.provider !== authDomain;
 }
-
-module.exports = {
-  isThirdPartyUser: isThirdPartyUser,
-  parseAccountID: parseAccountID,
-  username: username,
-};

@@ -1,10 +1,12 @@
-'use strict';
+import { createSelector } from 'reselect';
 
-const { createSelector } = require('reselect');
+import * as util from '../util';
 
-const util = require('../util');
-const { selectors: sessionSelectors } = require('./session');
-const { isLoggedIn } = sessionSelectors;
+import session from './session';
+
+/**
+ * @typedef {import('../../../types/api').Group} Group
+ */
 
 function init() {
   return {
@@ -99,13 +101,13 @@ function loadGroups(groups) {
 /**
  * Return the currently focused group.
  *
- * @return {Group|null}
+ * @return {Group|undefined|null}
  */
 function focusedGroup(state) {
-  if (!state.focusedGroupId) {
+  if (!state.groups.focusedGroupId) {
     return null;
   }
-  return getGroup(state, state.focusedGroupId);
+  return getGroup(state, state.groups.focusedGroupId);
 }
 
 /**
@@ -114,7 +116,7 @@ function focusedGroup(state) {
  * @return {string|null}
  */
 function focusedGroupId(state) {
-  return state.focusedGroupId;
+  return state.groups.focusedGroupId;
 }
 
 /**
@@ -123,16 +125,17 @@ function focusedGroupId(state) {
  * @return {Group[]}
  */
 function allGroups(state) {
-  return state.groups;
+  return state.groups.groups;
 }
 
 /**
  * Return the group with the given ID.
  *
+ * @param {string} id
  * @return {Group|undefined}
  */
 function getGroup(state, id) {
-  return state.groups.find(g => g.id === id);
+  return state.groups.groups.find(g => g.id === id);
 }
 
 /**
@@ -141,8 +144,8 @@ function getGroup(state, id) {
  * @return {Group[]}
  */
 const getMyGroups = createSelector(
-  state => state.groups,
-  isLoggedIn,
+  state => state.groups.groups,
+  session.selectors.isLoggedIn,
   (groups, loggedIn) => {
     // If logged out, the Public group still has isMember set to true so only
     // return groups with membership in logged in state.
@@ -159,7 +162,7 @@ const getMyGroups = createSelector(
  * @return {Group[]}
  */
 const getFeaturedGroups = createSelector(
-  state => state.groups,
+  state => state.groups.groups,
   groups => groups.filter(group => !group.isMember && group.isScopedToUri)
 );
 
@@ -187,12 +190,13 @@ const getCurrentlyViewingGroups = createSelector(
  * @return {Group[]}
  */
 const getInScopeGroups = createSelector(
-  state => state.groups,
+  state => state.groups.groups,
   groups => groups.filter(g => g.isScopedToUri)
 );
 
-module.exports = {
+export default {
   init,
+  namespace: 'groups',
   update,
   actions: {
     focusGroup,

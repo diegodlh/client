@@ -183,6 +183,12 @@ loads.
 
   Optional keys:
 
+   .. option:: allowLeavingGroups
+      
+      ``boolean``. A flag indicating whether users should be able to leave groups 
+      of which they are a member. When `false`, the controls for users to leave
+      groups will not be provided. (Default: `true`).
+
    .. option:: enableShareLinks
 
       ``boolean``. A flag indicating whether annotation cards should show links
@@ -190,12 +196,21 @@ loads.
 
    .. option:: groups
 
-      ``String[]|null``. An array of group IDs. If provided, the list of groups
-      fetched from the API will be filtered against this list so that the user
-      can only select from these groups.
+      ``String[]|"$rpc:requestGroups"|null``. An array of Group IDs or the literal 
+      string ``"$rpc:requestGroups"``. If provided, only these groups will be fetched 
+      and displayed in the client. This is used, for example, in the Hypothesis LMS app 
+      to show only the groups appropriate for a user looking at a particular assignment.
 
-      This can be useful in contexts where it is important that annotations
-      are made in a particular group.
+      .. note::
+
+        The value ``"$rpc:requestGroups"`` indicates that a list of group IDs to 
+        fetch should be provided to the client by an ancestor iframe. This can 
+        be useful if the list of appropriate groups is not available at initial 
+        load time. The client will send an asynchronous **RPC** request (``requestGroups``) 
+        via postMessage to the target frame configured in :option:`requestConfigFromFrame`. 
+        The listening frame should respond with an array of group IDs (or ``null``).
+        :option:`requestConfigFromFrame` config object must also be present for this 
+        to be enabled.
 
    .. option:: icon
 
@@ -365,10 +380,6 @@ loads.
 
 .. option:: externalContainerSelector
 
-   .. warning::
-
-      This is an experimental API and may change in future.
-
   ``string``. A CSS selector specifying the containing element into which the
   sidebar iframe will be placed.
 
@@ -385,6 +396,61 @@ loads.
   where annotations are located on the page relative to the current scroll
   position.
 
+  .. warning::
+
+    The :option:`externalContainerSelector` 
+    setting is currently still experimental and may change in the future.
+
+.. option:: focus
+
+  ``Object``. A structured object that defines a focused filter set for the available 
+  annotations on a page. When this object is passed to the config, the sidebar will add 
+  a UI button element that the user can toggle on or off to apply the filtered set of 
+  annotations defined by this ``focus`` object. This structure may define a particular 
+  ``user`` to focus on. Currently, only the ``user`` type is supported, but others may 
+  be added later.
+
+  .. note::
+    The focus ``user`` is not necessarily the same user viewing the sidebar.
+
+  For example:
+
+  .. code-block:: javascript
+    
+    window.hypothesisConfig = function () {
+      return {
+        focus: {
+          user: {
+            // required (username or userid)
+            username: "foobar1234",
+            userid: 'acct:foobar1234@domain',
+            // optional
+            displayName: "Foo Bar",
+          }
+        }
+      };
+    };
+  .. warning::
+
+    The :option:`focus`
+    setting is currently still experimental and may change in the future.
+
+.. option:: requestConfigFromFrame
+
+
+  ``Object``. 
+  An object with configuration information about an ancestor iframe that should be able 
+  to receive and send **RPC** messages from/to the client.
+  
+  .. code-block:: javascript
+    
+    requestConfigFromFrame: {
+      origin: `hostname:8000` // Host url and port number of receiving iframe
+      ancestorLevel: '2'      // Number of nested iframes deep the client is
+                              // relative from the receiving iframe.
+    }
+
+.. option:: 
 
 Asset and Sidebar App Location
 ##############################

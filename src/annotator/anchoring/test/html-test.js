@@ -1,10 +1,7 @@
-'use strict';
+import * as html from '../html';
 
-const html = require('../html');
-
-const toResult = require('../../../shared/test/promise-util').toResult;
-const unroll = require('../../../shared/test/util').unroll;
-const fixture = require('./html-anchoring-fixture.html');
+import fixture from './html-anchoring-fixture.html';
+import htmlBaselines from './html-baselines';
 
 /** Return all text node children of `container`. */
 function textNodes(container) {
@@ -65,7 +62,7 @@ function toRange(root, descriptor) {
 }
 
 function findByType(selectors, type) {
-  return selectors.find(function(s) {
+  return selectors.find(function (s) {
     return s.type === type;
   });
 }
@@ -74,7 +71,7 @@ function findByType(selectors, type) {
  * Return a copy of a list of selectors sorted by type.
  */
 function sortByType(selectors) {
-  return selectors.slice().sort(function(a, b) {
+  return selectors.slice().sort(function (a, b) {
     return a.type.localeCompare(b.type);
   });
 }
@@ -307,20 +304,20 @@ const expectedFailures = [
   // Currently empty.
 ];
 
-describe('HTML anchoring', function() {
+describe('HTML anchoring', function () {
   let container;
 
-  beforeEach(function() {
+  beforeEach(function () {
     container = document.createElement('section');
     container.innerHTML = fixture;
     document.body.appendChild(container);
   });
 
-  afterEach(function() {
+  afterEach(function () {
     container.remove();
   });
 
-  const testCases = rangeSpecs.map(function(data) {
+  const testCases = rangeSpecs.map(data => {
     return {
       range: {
         startContainer: data[0],
@@ -333,9 +330,8 @@ describe('HTML anchoring', function() {
     };
   });
 
-  unroll(
-    'describes and anchors "#description"',
-    function(testCase) {
+  testCases.forEach(testCase => {
+    it(`describes and anchors ${testCase.description}`, () => {
       // Resolve the range descriptor to a DOM Range, verify that the expected
       // text was selected.
       const range = toRange(container, testCase.range);
@@ -349,7 +345,7 @@ describe('HTML anchoring', function() {
       const positionSel = findByType(selectors, 'TextPositionSelector');
       const quoteSel = findByType(selectors, 'TextQuoteSelector');
 
-      const failInfo = expectedFailures.find(function(f) {
+      const failInfo = expectedFailures.find(function (f) {
         return f[0] === testCase.description;
       });
       let failTypes = {};
@@ -367,36 +363,33 @@ describe('HTML anchoring', function() {
 
       // Map each selector back to a Range and check that it refers to the same
       // text. We test each selector in turn to make sure they are all valid.
-      const anchored = selectors.map(function(sel) {
-        return html.anchor(container, [sel]).then(function(anchoredRange) {
+      const anchored = selectors.map(function (sel) {
+        return html.anchor(container, [sel]).then(function (anchoredRange) {
           assert.equal(range.toString(), anchoredRange.toString());
         });
       });
       return Promise.all(anchored);
-    },
-    testCases
-  );
+    });
+  });
 
-  describe('When anchoring fails', function() {
+  describe('When anchoring fails', function () {
     const validQuoteSelector = {
       type: 'TextQuoteSelector',
       exact: 'Lorem ipsum',
     };
 
-    it('throws an error if anchoring using a quote fails', function() {
+    it('throws an error if anchoring using a quote fails', async function () {
       const quoteSelector = {
         type: 'TextQuoteSelector',
         exact: 'This text does not appear in the web page',
       };
-
-      return toResult(html.anchor(container, [quoteSelector])).then(function(
-        result
-      ) {
-        assert.equal(result.error.message, 'Quote not found');
-      });
+      await assert.rejects(
+        html.anchor(container, [quoteSelector]),
+        'Quote not found'
+      );
     });
 
-    it('does not throw an error if anchoring using a position fails', function() {
+    it('does not throw an error if anchoring using a position fails', function () {
       const positionSelector = {
         type: 'TextPositionSelector',
         start: 1000,
@@ -408,7 +401,7 @@ describe('HTML anchoring', function() {
       return html.anchor(container, [positionSelector, validQuoteSelector]);
     });
 
-    it('does not throw an error if anchoring using a range fails', function() {
+    it('does not throw an error if anchoring using a range fails', function () {
       const rangeSelector = {
         type: 'RangeSelector',
         startContainer: '/main',
@@ -423,22 +416,20 @@ describe('HTML anchoring', function() {
     });
   });
 
-  describe('Web page baselines', function() {
-    const fixtures = require('./html-baselines');
+  describe('Web page baselines', function () {
     let frame;
 
-    before(function() {
+    before(function () {
       frame = document.createElement('iframe');
       document.body.appendChild(frame);
     });
 
-    after(function() {
+    after(function () {
       frame.remove();
     });
 
-    unroll(
-      'generates selectors which match the baseline (#name)',
-      function(fixture) {
+    htmlBaselines.forEach(fixture => {
+      it(`generates selectors which match the baseline ${fixture.name}`, () => {
         let fixtureHtml = fixture.html;
         const annotations = fixture.annotations.rows;
 
@@ -455,25 +446,24 @@ describe('HTML anchoring', function() {
 
         frame.contentWindow.document.documentElement.innerHTML = fixtureHtml;
 
-        const annotationsChecked = annotations.map(function(ann) {
+        const annotationsChecked = annotations.map(function (ann) {
           // Anchor the existing selectors
           const root = frame.contentWindow.document.body;
           const selectors = ann.target[0].selector;
           const result = html.anchor(root, selectors);
           return result
-            .then(function(range) {
+            .then(function (range) {
               // Re-anchor the selectors and check that the new and existing
               // selectors match.
               return html.describe(root, range);
             })
-            .then(function(newSelectors) {
+            .then(function (newSelectors) {
               assert.deepEqual(sortByType(selectors), sortByType(newSelectors));
             });
         });
 
-        return Promise.all(annotationsChecked);
-      },
-      fixtures
-    );
+        Promise.all(annotationsChecked);
+      });
+    });
   });
 });

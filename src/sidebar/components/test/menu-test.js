@@ -1,13 +1,16 @@
-'use strict';
+import { mount } from 'enzyme';
+import { createElement } from 'preact';
+import { act } from 'preact/test-utils';
 
-const { createElement } = require('preact');
-const { act } = require('preact/test-utils');
-const { mount } = require('enzyme');
+import Menu from '../menu';
+import { $imports } from '../menu';
 
-const Menu = require('../menu');
+import mockImportedComponents from '../../../test-util/mock-imported-components';
+import { checkAccessibility } from '../../../test-util/accessibility';
 
 describe('Menu', () => {
   let container;
+  let clock;
 
   const TestLabel = () => 'Test label';
   const TestMenuItem = () => 'Test item';
@@ -31,15 +34,16 @@ describe('Menu', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
 
-    Menu.$imports.$mock({
-      // eslint-disable-next-line react/display-name
-      './svg-icon': () => <span>Fake SVG icon</span>,
-    });
+    $imports.$mock(mockImportedComponents());
   });
 
   afterEach(() => {
-    Menu.$imports.$restore();
+    $imports.$restore();
     container.remove();
+    if (clock) {
+      clock.restore();
+      clock = null;
+    }
   });
 
   it('opens and closes when the toggle button is clicked', () => {
@@ -49,6 +53,15 @@ describe('Menu', () => {
     assert.isTrue(isOpen(wrapper));
     wrapper.find('button').simulate('click');
     assert.isFalse(isOpen(wrapper));
+  });
+
+  it('calls `onOpenChanged` prop when menu is opened or closed', () => {
+    const onOpenChanged = sinon.stub();
+    const wrapper = createMenu({ onOpenChanged });
+    wrapper.find('button').simulate('click');
+    assert.calledWith(onOpenChanged, true);
+    wrapper.find('button').simulate('click');
+    assert.calledWith(onOpenChanged, false);
   });
 
   it('opens and closes when the toggle button is pressed', () => {
@@ -82,7 +95,8 @@ describe('Menu', () => {
   [
     new Event('mousedown'),
     new Event('click'),
-    ((e = new Event('keypress')), (e.key = 'Escape'), e),
+    ((e = new Event('keydown')), (e.key = 'Escape'), e),
+    new Event('focus'),
   ].forEach(event => {
     it(`closes when the user clicks or presses the mouse outside (${event.type})`, () => {
       const wrapper = createMenu({ defaultOpen: true });
@@ -100,7 +114,7 @@ describe('Menu', () => {
     const wrapper = createMenu({ defaultOpen: true });
 
     act(() => {
-      const event = new Event('keypress');
+      const event = new Event('keydown');
       event.key = 'a';
       document.body.dispatchEvent(event);
     });
@@ -122,6 +136,58 @@ describe('Menu', () => {
     assert.isTrue(isOpen(wrapper));
   });
 
+  [
+    {
+      eventType: 'click',
+      key: null,
+      shouldClose: true,
+    },
+    {
+      eventType: 'keydown',
+      key: 'Enter',
+      shouldClose: true,
+    },
+    {
+      eventType: 'keydown',
+      key: ' ',
+      shouldClose: true,
+    },
+    {
+      eventType: 'keydown',
+      key: 'a',
+      shouldClose: false,
+    },
+    {
+      eventType: 'focus',
+      key: null,
+      shouldClose: false,
+    },
+  ].forEach(({ eventType, key, shouldClose }) => {
+    it(`${
+      shouldClose ? 'closes' : "doesn't close"
+    } when user performs a "${eventType}" (key: "${key}") on menu content`, () => {
+      clock = sinon.useFakeTimers();
+      const wrapper = createMenu({ defaultOpen: true });
+      wrapper.find('.menu__content').simulate(eventType, { key });
+      // The close event is delayed by a minimal amount of time in
+      // order to allow links to say in the DOM long enough to be
+      // followed on a click. Therefore, this test must simulate
+      // time passing in order for the menu to close.
+      clock.tick(1);
+      wrapper.update();
+      assert.equal(isOpen(wrapper), !shouldClose);
+    });
+  });
+
+  it("doesn't close when user presses on a menu element outside the toggle button or content", () => {
+    const wrapper = createMenu({ defaultOpen: true });
+
+    // The event may be received either by the top `<div>` or the arrow element
+    // itself.
+    wrapper.find('.menu').simulate('mousedown');
+    wrapper.find('.menu__arrow').simulate('mousedown');
+  });
+
   it('aligns menu content depending on `align` prop', () => {
     const wrapper = createMenu({ defaultOpen: true });
     assert.isTrue(wrapper.exists('.menu__content--align-left'));
@@ -141,4 +207,46 @@ describe('Menu', () => {
     const content = wrapper.find('.menu__content');
     assert.isTrue(content.hasClass('special-menu'));
   });
+
+  it('applies custom arrow class', () => {
+    const wrapper = createMenu({
+      arrowClass: 'my-arrow-class',
+      defaultOpen: true,
+    });
+    const arrow = wrapper.find('.menu__arrow');
+
+    assert.isTrue(arrow.hasClass('my-arrow-class'));
+  });
+
+  it('has relative positioning if `containerPositioned` is `true`', () => {
+    const wrapper = createMenu({
+      containerPositioned: true, // default
+    });
+    const menuContainer = wrapper.find('.menu');
+
+    assert.include({ position: 'relative' }, menuContainer.prop('style'));
+  });
+
+  it('has static positioning if `containerPositioned` is `false`', () => {
+    const wrapper = createMenu({
+      containerPositioned: false,
+    });
+    const menuContainer = wrapper.find('.menu');
+
+    assert.include({ position: 'static' }, menuContainer.prop('style'));
+  });
+
+  it(
+    'should pass a11y checks',
+    checkAccessibility([
+      {
+        // eslint-disable-next-line react/display-name
+        content: () => (
+          <Menu label={<TestLabel />} title="Test menu">
+            <TestMenuItem />
+          </Menu>
+        ),
+      },
+    ])
+  );
 });

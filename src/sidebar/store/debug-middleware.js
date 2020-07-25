@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * A debug utility that prints information about internal application state
  * changes to the console.
@@ -9,13 +7,16 @@
  * When enabled, every action that changes application state will be printed
  * to the console, along with the application state before and after the action
  * was handled.
+ *
+ * @param {import("redux").Store} store
  */
-function debugMiddleware(store) {
+export default function debugMiddleware(store) {
   /* eslint-disable no-console */
   let serial = 0;
 
-  return function(next) {
-    return function(action) {
+  return function (next) {
+    return function (action) {
+      // @ts-ignore The window interface needs to be expanded to include this property
       if (!window.debug) {
         next(action);
         return;
@@ -31,10 +32,8 @@ function debugMiddleware(store) {
       next(action);
 
       console.log('Next State:', store.getState());
-      console.groupEnd(groupTitle);
+      console.groupEnd();
     };
   };
   /* eslint-enable no-console */
 }
-
-module.exports = debugMiddleware;

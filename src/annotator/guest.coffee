@@ -1,5 +1,3 @@
-extend = require('extend')
-raf = require('raf')
 scrollIntoView = require('scroll-into-view')
 CustomEvent = require('custom-event')
 
@@ -10,28 +8,41 @@ adder = require('./adder')
 htmlAnchoring = require('./anchoring/html')
 highlighter = require('./highlighter')
 rangeUtil = require('./range-util')
-selections = require('./selections')
+{ default: selections } = require('./selections')
 xpathRange = require('./anchoring/range')
+{ closest } = require('../shared/dom-element')
 { normalizeURI } = require('./util/url')
 
 animationPromise = (fn) ->
   return new Promise (resolve, reject) ->
-    raf ->
+    requestAnimationFrame ->
       try
         resolve(fn())
       catch error
         reject(error)
 
+annotationsForSelection = () ->
+  selection = window.getSelection()
+  range = selection.getRangeAt(0)
+  return rangeUtil.itemsForRange(range, (node) -> $(node).data('annotation'))
+
+# A selector which matches elements added to the DOM by Hypothesis (eg. for
+# highlights and annotation UI).
+#
+# We can simplify this once all classes are converted from an "annotator-"
+# prefix to a "hypothesis-" prefix.
+IGNORE_SELECTOR = '[class^="annotator-"],[class^="hypothesis-"]'
+
 module.exports = class Guest extends Delegator
-  SHOW_HIGHLIGHTS_CLASS = 'annotator-highlights-always-on'
+  SHOW_HIGHLIGHTS_CLASS = 'hypothesis-highlights-always-on'
 
   # Events to be bound on Delegator#element.
   events:
-    ".annotator-hl click":               "onHighlightClick"
-    ".annotator-hl mouseover":           "onHighlightMouseover"
-    ".annotator-hl mouseout":            "onHighlightMouseout"
-    "click":                             "onElementClick"
-    "touchstart":                        "onElementTouchStart"
+    ".hypothesis-highlight click":      "onHighlightClick"
+    ".hypothesis-highlight mouseover":  "onHighlightMouseover"
+    ".hypothesis-highlight mouseout":   "onHighlightMouseout"
+    "click":                            "onElementClick"
+    "touchstart":                       "onElementTouchStart"
 
   options:
     Document: {}
@@ -63,6 +74,8 @@ module.exports = class Guest extends Delegator
         self.setVisibleHighlights(true)
         self.createHighlight()
         document.getSelection().removeAllRanges()
+      onShowAnnotations: (anns) ->
+        self.selectAnnotations(anns)
     })
     this.selections = selections(document).subscribe
       next: (range) ->
@@ -153,7 +166,7 @@ module.exports = class Guest extends Delegator
     crossframe.on 'focusAnnotations', (tags=[]) =>
       for anchor in @anchors when anchor.highlights?
         toggle = anchor.annotation.$tag in tags
-        $(anchor.highlights).toggleClass('annotator-hl-focused', toggle)
+        $(anchor.highlights).toggleClass('hypothesis-highlight-focused', toggle)
 
     crossframe.on 'scrollToAnnotation', (tag) =>
       for anchor in @anchors when anchor.highlights?
@@ -181,7 +194,7 @@ module.exports = class Guest extends Delegator
     this.selections.unsubscribe()
     @adder.remove()
 
-    @element.find('.annotator-hl').each ->
+    @element.find('.hypothesis-highlight').each ->
       $(this).contents().insertBefore(this)
       $(this).remove()
 
@@ -228,7 +241,7 @@ module.exports = class Guest extends Delegator
       # Find a target using the anchoring module.
       options = {
         cache: self.anchoringCache
-        ignoreSelector: '[class^="annotator-"]'
+        ignoreSelector: IGNORE_SELECTOR
       }
       return self.anchoring.anchor(root, target.selector, options)
       .then((range) -> {annotation, target, range})
@@ -289,7 +302,7 @@ module.exports = class Guest extends Delegator
         self.anchors.push(anchor)
 
     # Remove all the highlights that have no corresponding target anymore.
-    raf -> highlighter.removeHighlights(deadHighlights)
+    requestAnimationFrame -> highlighter.removeHighlights(deadHighlights)
 
     # Anchor any targets of this annotation that are not anchored already.
     for target in annotation.target when target not in anchoredTargets
@@ -312,7 +325,7 @@ module.exports = class Guest extends Delegator
     this.anchors = anchors
 
     unhighlight = Array::concat(unhighlight...)
-    raf =>
+    requestAnimationFrame =>
       highlighter.removeHighlights(unhighlight)
       this.plugins.BucketBar?.update()
 
@@ -326,7 +339,7 @@ module.exports = class Guest extends Delegator
     getSelectors = (range) ->
       options = {
         cache: self.anchoringCache
-        ignoreSelector: '[class^="annotator-"]'
+        ignoreSelector: IGNORE_SELECTOR
       }
       # Returns an array of selectors for the passed range.
       return self.anchoring.describe(root, range, options)
@@ -413,23 +426,16 @@ module.exports = class Guest extends Delegator
       return
 
     @selectedRanges = [range]
-
-    $('.annotator-toolbar .h-icon-note')
-      .attr('title', 'New Annotation')
-      .removeClass('h-icon-note')
-      .addClass('h-icon-annotate');
+    @toolbar?.newAnnotationType = 'annotation'
 
     {left, top, arrowDirection} = this.adderCtrl.target(focusRect, isBackwards)
+    this.adderCtrl.annotationsForSelection = annotationsForSelection()
     this.adderCtrl.showAt(left, top, arrowDirection)
 
   _onClearSelection: () ->
     this.adderCtrl.hide()
     @selectedRanges = []
-
-    $('.annotator-toolbar .h-icon-annotate')
-      .attr('title', 'New Page Note')
-      .removeClass('h-icon-annotate')
-      .addClass('h-icon-note');
+    @toolbar?.newAnnotationType = 'note'
 
   selectAnnotations: (annotations, toggle) ->
     if toggle
@@ -437,8 +443,15 @@ module.exports = class Guest extends Delegator
     else
       this.showAnnotations annotations
 
+  # Did an event originate from an element in the annotator UI? (eg. the sidebar
+  # frame, or its toolbar)
+  _isEventInAnnotator: (event) ->
+    return closest(event.target, '.annotator-frame') != null
+
+  # Event handlers to close the sidebar when the user clicks in the document.
+  # These really ought to live with the sidebar code.
   onElementClick: (event) ->
-    if !@selectedTargets?.length
+    if !this._isEventInAnnotator(event) and !@selectedTargets?.length
       @crossframe?.call('hideSidebar')
 
   onElementTouchStart: (event) ->
@@ -447,7 +460,7 @@ module.exports = class Guest extends Delegator
     # adding that to every element, we can add the initial
     # touchstart event which is always registered to
     # make up for the lack of click support for all elements.
-    if !@selectedTargets?.length
+    if !this._isEventInAnnotator(event) and !@selectedTargets?.length
       @crossframe?.call('hideSidebar')
 
   onHighlightMouseover: (event) ->
@@ -489,3 +502,4 @@ module.exports = class Guest extends Delegator
       @element.removeClass(SHOW_HIGHLIGHTS_CLASS)
 
     @visibleHighlights = shouldShowHighlights
+    @toolbar?.highlightsVisible = shouldShowHighlights

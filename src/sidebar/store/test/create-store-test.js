@@ -1,79 +1,121 @@
-'use strict';
+/* global process */
 
-const createStore = require('../create-store');
+import createStore from '../create-store';
 
-const counterModule = {
-  init(value = 0) {
-    return { count: value };
-  },
+const A = 0;
 
-  update: {
-    ['INCREMENT_COUNTER'](state, action) {
-      return { count: state.count + action.amount };
+const modules = [
+  {
+    // namespaced module A
+    init(value = 0) {
+      return { count: value };
+    },
+    namespace: 'a',
+
+    update: {
+      INCREMENT_COUNTER_A: (state, action) => {
+        return { count: state.count + action.amount };
+      },
+      RESET: () => {
+        return { count: 0 };
+      },
+    },
+
+    actions: {
+      incrementA(amount) {
+        return { type: 'INCREMENT_COUNTER_A', amount };
+      },
+    },
+
+    selectors: {
+      getCountA(state) {
+        return state.a.count;
+      },
     },
   },
+  {
+    // namespaced module B
+    init(value = 0) {
+      return { count: value };
+    },
+    namespace: 'b',
 
-  actions: {
-    increment(amount) {
-      return { type: 'INCREMENT_COUNTER', amount };
+    update: {
+      INCREMENT_COUNTER_B: (state, action) => {
+        return { count: state.count + action.amount };
+      },
+      RESET: () => {
+        return { count: 0 };
+      },
+    },
+
+    actions: {
+      incrementB(amount) {
+        return { type: 'INCREMENT_COUNTER_B', amount };
+      },
+    },
+
+    selectors: {
+      getCountB(state) {
+        return state.b.count;
+      },
     },
   },
-
-  selectors: {
-    getCount(state) {
-      return state.count;
-    },
-  },
-};
+];
 
 function counterStore(initArgs = [], middleware = []) {
-  return createStore([counterModule], initArgs, middleware);
+  return createStore(modules, initArgs, middleware);
 }
 
-describe('sidebar.store.create-store', () => {
+describe('sidebar/store/create-store', () => {
   it('returns a working Redux store', () => {
     const store = counterStore();
-    store.dispatch(counterModule.actions.increment(5));
-    assert.equal(store.getState().count, 5);
+    assert.equal(store.getState().a.count, 0);
+  });
+
+  it('dispatches bound actions', () => {
+    const store = counterStore();
+    store.incrementA(5);
+    assert.equal(store.getState().a.count, 5);
   });
 
   it('notifies subscribers when state changes', () => {
     const store = counterStore();
-    const subscriber = sinon.spy(() => assert.equal(store.getCount(), 1));
+    const subscriber = sinon.spy(() => assert.equal(store.getCountA(), 1));
 
     store.subscribe(subscriber);
-    store.increment(1);
+    store.incrementA(1);
 
     assert.calledWith(subscriber);
   });
 
   it('passes initial state args to `init` function', () => {
     const store = counterStore([21]);
-    assert.equal(store.getState().count, 21);
+    assert.equal(store.getState().a.count, 21);
   });
 
   it('adds actions as methods to the store', () => {
     const store = counterStore();
-    store.increment(5);
-    assert.equal(store.getState().count, 5);
+    store.incrementA(5);
+    assert.equal(store.getState().a.count, 5);
   });
 
   it('adds selectors as methods to the store', () => {
     const store = counterStore();
-    store.dispatch(counterModule.actions.increment(5));
-    assert.equal(store.getCount(), 5);
+    store.dispatch(modules[A].actions.incrementA(5));
+    assert.equal(store.getCountA(), 5);
   });
 
   it('applies `thunk` middleware by default', () => {
     const store = counterStore();
     const doubleAction = (dispatch, getState) => {
-      dispatch(counterModule.actions.increment(getState().count));
+      dispatch(modules[A].actions.incrementA(getState().a.count));
     };
 
-    store.increment(5);
+    store.incrementA(5);
     store.dispatch(doubleAction);
 
-    assert.equal(store.getCount(), 10);
+    assert.equal(store.getCountA(), 10);
   });
 
   it('applies additional middleware', () => {
@@ -88,8 +130,44 @@ describe('sidebar.store.create-store', () => {
     };
     const store = counterStore([], [middleware]);
 
-    store.increment(5);
+    store.incrementA(5);
 
-    assert.deepEqual(actions, [{ type: 'INCREMENT_COUNTER', amount: 5 }]);
+    assert.deepEqual(actions, [{ type: 'INCREMENT_COUNTER_A', amount: 5 }]);
   });
+
+  it('actions and selectors operate on their respective namespaced state', () => {
+    const store = counterStore();
+    store.incrementB(6);
+    store.incrementA(5);
+    assert.equal(store.getCountB(), 6);
+    assert.equal(store.getCountA(), 5);
+  });
+
+  it('getState returns the top level root state', () => {
+    const store = counterStore();
+    store.incrementA(5);
+    store.incrementB(6);
+    assert.equal(store.getState().a.count, 5);
+    assert.equal(store.getState().b.count, 6);
+  });
+
+  it('action can be handled across multiple reducers', () => {
+    const store = counterStore();
+    store.incrementA(1);
+    store.incrementB(1);
+    store.dispatch({
+      type: 'RESET',
+    });
+    assert.equal(store.getState().a.count, 0);
+    assert.equal(store.getState().b.count, 0);
+  });
+
+  if (process.env.NODE_ENV !== 'production') {
+    it('freezes store state in development builds', () => {
+      const store = counterStore();
+      assert.throws(() => {
+        store.getState().a.count = 1;
+      }, /Cannot assign to read only property/);
+    });
+  }
 });

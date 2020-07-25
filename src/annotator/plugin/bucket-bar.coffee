@@ -1,5 +1,3 @@
-raf = require('raf')
-
 $ = require('jquery')
 Plugin = require('../plugin')
 
@@ -101,7 +99,7 @@ module.exports = class BucketBar extends Plugin
   # Update sometime soon
   update: =>
     return if @_updatePending?
-    @_updatePending = raf =>
+    @_updatePending = requestAnimationFrame =>
       delete @_updatePending
       @_update()
 
@@ -232,13 +230,13 @@ module.exports = class BucketBar extends Plugin
         bucket = @tabs.index(event.currentTarget)
         for anchor in @annotator.anchors
           toggle = anchor in @buckets[bucket]
-          $(anchor.highlights).toggleClass('annotator-hl-focused', toggle)
+          $(anchor.highlights).toggleClass('hypothesis-highlight-focused', toggle)
 
       # Gets rid of them after
       .on 'mouseout', (event) =>
         bucket = @tabs.index(event.currentTarget)
         for anchor in @buckets[bucket]
-          $(anchor.highlights).removeClass('annotator-hl-focused')
+          $(anchor.highlights).removeClass('hypothesis-highlight-focused')
 
       # Does one of a few things when a tab is clicked depending on type
       .on 'click', (event) =>

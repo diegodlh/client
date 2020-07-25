@@ -1,11 +1,8 @@
-'use strict';
+import EventEmitter from 'tiny-emitter';
 
-const EventEmitter = require('tiny-emitter');
-
-const events = require('../../events');
-const unroll = require('../../../shared/test/util').unroll;
-
-const Streamer = require('../streamer');
+import fakeReduxStore from '../../test/fake-redux-store';
+import Streamer from '../streamer';
+import { $imports } from '../streamer';
 
 const fixtures = {
   createNotification: {
@@ -47,12 +44,14 @@ const fixtures = {
 
 // the most recently created FakeSocket instance
 let fakeWebSocket = null;
+let fakeWebSockets = [];
 
 class FakeSocket extends EventEmitter {
   constructor(url) {
     super();
 
     fakeWebSocket = this; // eslint-disable-line consistent-this
+    fakeWebSockets.push(this);
 
     this.url = url;
     this.messages = [];
@@ -60,34 +59,30 @@ class FakeSocket extends EventEmitter {
 
     this.isConnected = sinon.stub().returns(true);
 
-    this.send = function(message) {
+    this.send = function (message) {
       this.messages.push(message);
     };
 
-    this.notify = function(message) {
+    this.notify = function (message) {
       this.emit('message', { data: JSON.stringify(message) });
     };
 
-    this.close = function() {
+    this.close = function () {
       this.didClose = true;
     };
   }
 }
 
-describe('Streamer', function() {
-  let fakeAnnotationMapper;
+describe('Streamer', function () {
   let fakeStore;
   let fakeAuth;
   let fakeGroups;
-  let fakeRootScope;
   let fakeSession;
   let fakeSettings;
   let activeStreamer;
 
   function createDefaultStreamer() {
     activeStreamer = new Streamer(
-      fakeRootScope,
-      fakeAnnotationMapper,
       fakeStore,
       fakeAuth,
       fakeGroups,
@@ -96,39 +91,29 @@ describe('Streamer', function() {
     );
   }
 
-  beforeEach(function() {
-    const emitter = new EventEmitter();
-
+  beforeEach(function () {
     fakeAuth = {
-      tokenGetter: function() {
+      tokenGetter: function () {
         return Promise.resolve('dummy-access-token');
       },
     };
 
-    fakeRootScope = {
-      $apply: function(callback) {
-        callback();
-      },
-      $on: emitter.on.bind(emitter),
-      $broadcast: function(event, data) {
-        emitter.emit(event, { event: event }, data);
-      },
-    };
-
-    fakeAnnotationMapper = {
-      loadAnnotations: sinon.stub(),
-      unloadAnnotations: sinon.stub(),
-    };
-
-    fakeStore = {
-      annotationExists: sinon.stub().returns(false),
-      isSidebar: sinon.stub().returns(true),
-      getState: sinon.stub().returns({
-        session: {
+    fakeStore = fakeReduxStore(
+      {},
+      {
+        addAnnotations: sinon.stub(),
+        annotationExists: sinon.stub().returns(false),
+        clearPendingUpdates: sinon.stub(),
+        pendingUpdates: sinon.stub().returns({}),
+        pendingDeletions: sinon.stub().returns({}),
+        profile: sinon.stub().returns({
           userid: 'jim@hypothes.is',
-        },
-      }),
-    };
+        }),
+        receiveRealTimeUpdates: sinon.stub(),
+        removeAnnotations: sinon.stub(),
+        route: sinon.stub().returns('sidebar'),
+      }
+    );
 
     fakeGroups = {
       focused: sinon.stub().returns({ id: 'public' }),
@@ -143,39 +128,40 @@ describe('Streamer', function() {
       websocketUrl: 'ws://example.com/ws',
     };
 
-    Streamer.$imports.$mock({
+    $imports.$mock({
       '../websocket': FakeSocket,
     });
   });
 
-  afterEach(function() {
-    Streamer.$imports.$restore();
+  afterEach(function () {
+    $imports.$restore();
     activeStreamer = null;
+    fakeWebSockets = [];
   });
 
-  it('should not create a websocket connection if websocketUrl is not provided', function() {
+  it('should not create a websocket connection if websocketUrl is not provided', function () {
     fakeSettings = {};
     createDefaultStreamer();
 
-    return activeStreamer.connect().then(function() {
+    return activeStreamer.connect().then(function () {
       assert.isNull(fakeWebSocket);
     });
   });
 
-  it('should not create a websocket connection', function() {
+  it('should not create a websocket connection', function () {
     createDefaultStreamer();
     assert.isNull(fakeWebSocket);
   });
 
-  it('should have a non-null client ID', function() {
+  it('should have a non-null client ID', function () {
     createDefaultStreamer();
     assert.ok(activeStreamer.clientId);
   });
 
-  it('should send the client ID after connecting', function() {
+  it('should send the client ID after connecting', function () {
     createDefaultStreamer();
-    return activeStreamer.connect().then(function() {
-      const clientIdMsg = fakeWebSocket.messages.find(function(msg) {
+    return activeStreamer.connect().then(function () {
+      const clientIdMsg = fakeWebSocket.messages.find(function (msg) {
         return msg.messageType === 'client_id';
       });
       assert.ok(clientIdMsg);
@@ -183,27 +169,27 @@ describe('Streamer', function() {
     });
   });
 
-  it('should request the logged-in user ID after connecting', function() {
+  it('should request the logged-in user ID after connecting', function () {
     createDefaultStreamer();
-    return activeStreamer.connect().then(function() {
-      const whoamiMsg = fakeWebSocket.messages.find(function(msg) {
+    return activeStreamer.connect().then(function () {
+      const whoamiMsg = fakeWebSocket.messages.find(function (msg) {
         return msg.type === 'whoami';
       });
       assert.ok(whoamiMsg);
     });
   });
 
-  describe('#connect()', function() {
-    it('should create a websocket connection', function() {
+  describe('#connect()', function () {
+    it('should create a websocket connection', function () {
       createDefaultStreamer();
-      return activeStreamer.connect().then(function() {
+      return activeStreamer.connect().then(function () {
         assert.ok(fakeWebSocket);
       });
     });
 
-    it('should include credentials in the URL if the client has an access token', function() {
+    it('should include credentials in the URL if the client has an access token', function () {
       createDefaultStreamer();
-      return activeStreamer.connect().then(function() {
+      return activeStreamer.connect().then(function () {
         assert.equal(
           fakeWebSocket.url,
           'ws://example.com/ws?access_token=dummy-access-token'
@@ -211,10 +197,10 @@ describe('Streamer', function() {
       });
     });
 
-    it('should preserve query params when adding access token to URL', function() {
+    it('should preserve query params when adding access token to URL', function () {
       fakeSettings.websocketUrl = 'ws://example.com/ws?foo=bar';
       createDefaultStreamer();
-      return activeStreamer.connect().then(function() {
+      return activeStreamer.connect().then(function () {
         assert.equal(
           fakeWebSocket.url,
           'ws://example.com/ws?access_token=dummy-access-token&foo=bar'
@@ -222,228 +208,194 @@ describe('Streamer', function() {
       });
     });
 
-    it('should not include credentials in the URL if the client has no access token', function() {
-      fakeAuth.tokenGetter = function() {
+    it('should not include credentials in the URL if the client has no access token', function () {
+      fakeAuth.tokenGetter = function () {
         return Promise.resolve(null);
       };
 
       createDefaultStreamer();
-      return activeStreamer.connect().then(function() {
+      return activeStreamer.connect().then(function () {
         assert.equal(fakeWebSocket.url, 'ws://example.com/ws');
       });
     });
 
-    it('should not close any existing socket', function() {
+    it('should not close any existing socket', function () {
       let oldWebSocket;
       createDefaultStreamer();
       return activeStreamer
         .connect()
-        .then(function() {
+        .then(function () {
           oldWebSocket = fakeWebSocket;
           return activeStreamer.connect();
         })
-        .then(function() {
+        .then(function () {
           assert.ok(!oldWebSocket.didClose);
           assert.ok(!fakeWebSocket.didClose);
         });
     });
   });
 
-  describe('#reconnect()', function() {
-    it('should close the existing socket', function() {
+  describe('#reconnect()', function () {
+    it('should close the existing socket', function () {
       let oldWebSocket;
       createDefaultStreamer();
 
       return activeStreamer
         .connect()
-        .then(function() {
+        .then(function () {
           oldWebSocket = fakeWebSocket;
           return activeStreamer.reconnect();
         })
-        .then(function() {
+        .then(function () {
           assert.ok(oldWebSocket.didClose);
           assert.ok(!fakeWebSocket.didClose);
         });
     });
   });
 
-  describe('annotation notifications', function() {
-    beforeEach(function() {
+  describe('Automatic reconnection', function () {
+    function delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    it('should reconnect when user changes', function () {
+      let oldWebSocket;
+      createDefaultStreamer();
+
+      return activeStreamer
+        .connect()
+        .then(function () {
+          oldWebSocket = fakeWebSocket;
+          fakeStore.profile.returns({ userid: 'somebody' });
+          return fakeStore.setState({});
+        })
+        .then(function () {
+          assert.ok(oldWebSocket.didClose);
+          assert.ok(!fakeWebSocket.didClose);
+        });
+    });
+
+    it('should only set up auto-reconnect once', async () => {
+      createDefaultStreamer();
+      // This should register auto-reconnect
+      await activeStreamer.connect();
+      // Call connect again: this should not "re-register" auto-reconnect
+      await activeStreamer.connect();
+
+      // This should trigger auto-reconnect, but only once, proving that
+      // only one registration happened
+      fakeStore.profile.returns({ userid: 'somebody' });
+      fakeStore.setState({});
+
+      await delay(1);
+      // Total number of web sockets blown through in this test should be 2
+      // 3+ would indicate `reconnect` fired more than once
+      assert.lengthOf(fakeWebSockets, 2);
+    });
+  });
+
+  describe('annotation notifications', function () {
+    beforeEach(function () {
       createDefaultStreamer();
       return activeStreamer.connect();
     });
 
-    context('when the app is the stream', function() {
-      beforeEach(function() {
-        fakeStore.isSidebar.returns(false);
+    context('when the app is the stream', function () {
+      beforeEach(function () {
+        fakeStore.route.returns('stream');
       });
 
-      it('does not defer updates', function() {
-        fakeWebSocket.notify(fixtures.createNotification);
-
-        assert.calledWith(
-          fakeAnnotationMapper.loadAnnotations,
-          fixtures.createNotification.payload
-        );
-      });
-
-      it('applies updates from all groups', function() {
-        fakeGroups.focused.returns({ id: 'private' });
+      it('applies updates immediately', function () {
+        const [ann] = fixtures.createNotification.payload;
+        fakeStore.pendingUpdates.returns({
+          [ann.id]: ann,
+        });
 
         fakeWebSocket.notify(fixtures.createNotification);
 
+        assert.calledWith(fakeStore.receiveRealTimeUpdates, {
+          updatedAnnotations: [ann],
+        });
         assert.calledWith(
-          fakeAnnotationMapper.loadAnnotations,
+          fakeStore.addAnnotations,
           fixtures.createNotification.payload
         );
       });
     });
 
-    context('when the app is the sidebar', function() {
-      it('saves pending updates', function() {
+    context('when the app is the sidebar', function () {
+      it('saves pending updates', function () {
         fakeWebSocket.notify(fixtures.createNotification);
-        assert.equal(activeStreamer.countPendingUpdates(), 1);
+        assert.calledWith(fakeStore.receiveRealTimeUpdates, {
+          updatedAnnotations: fixtures.createNotification.payload,
+        });
       });
 
-      it('does not save pending updates for annotations in unfocused groups', function() {
-        fakeGroups.focused.returns({ id: 'private' });
-        fakeWebSocket.notify(fixtures.createNotification);
-        assert.equal(activeStreamer.countPendingUpdates(), 0);
+      it('saves pending deletions', function () {
+        fakeWebSocket.notify(fixtures.deleteNotification);
+        assert.calledWith(fakeStore.receiveRealTimeUpdates, {
+          deletedAnnotations: fixtures.deleteNotification.payload,
+        });
       });
 
-      it('saves pending deletions if the annotation is loaded', function() {
-        const id = fixtures.deleteNotification.payload[0].id;
-        fakeStore.annotationExists.returns(true);
+      it('does not apply updates immediately', function () {
+        const ann = fixtures.createNotification.payload;
+        fakeStore.pendingUpdates.returns({
+          [ann.id]: ann,
+        });
+
+        fakeWebSocket.notify(fixtures.createNotification);
+
+        assert.notCalled(fakeStore.addAnnotations);
+      });
+
+      it('does not apply deletions immediately', function () {
+        const ann = fixtures.deleteNotification.payload;
+        fakeStore.pendingDeletions.returns({
+          [ann.id]: true,
+        });
 
         fakeWebSocket.notify(fixtures.deleteNotification);
 
-        assert.isTrue(activeStreamer.hasPendingDeletion(id));
-        assert.equal(activeStreamer.countPendingUpdates(), 1);
-      });
-
-      it('discards pending deletions if the annotation is not loaded', function() {
-        const id = fixtures.deleteNotification.payload[0].id;
-        fakeStore.annotationExists.returns(false);
-
-        fakeWebSocket.notify(fixtures.deleteNotification);
-
-        assert.isFalse(activeStreamer.hasPendingDeletion(id));
-      });
-
-      it('saves one pending update per annotation', function() {
-        fakeWebSocket.notify(fixtures.createNotification);
-        fakeWebSocket.notify(fixtures.updateNotification);
-        assert.equal(activeStreamer.countPendingUpdates(), 1);
-      });
-
-      it('discards pending updates if an unloaded annotation is deleted', function() {
-        fakeStore.annotationExists.returns(false);
-
-        fakeWebSocket.notify(fixtures.createNotification);
-        fakeWebSocket.notify(fixtures.deleteNotification);
-
-        assert.equal(activeStreamer.countPendingUpdates(), 0);
-      });
-
-      it('does not apply updates immediately', function() {
-        fakeWebSocket.notify(fixtures.createNotification);
-        assert.notCalled(fakeAnnotationMapper.loadAnnotations);
-      });
-
-      it('does not apply deletions immediately', function() {
-        fakeWebSocket.notify(fixtures.deleteNotification);
-        assert.notCalled(fakeAnnotationMapper.unloadAnnotations);
+        assert.notCalled(fakeStore.removeAnnotations);
       });
     });
   });
 
-  describe('#applyPendingUpdates', function() {
-    beforeEach(function() {
+  describe('#applyPendingUpdates', function () {
+    beforeEach(function () {
       createDefaultStreamer();
       return activeStreamer.connect();
     });
 
-    it('applies pending updates', function() {
-      fakeWebSocket.notify(fixtures.createNotification);
+    it('applies pending updates', function () {
+      fakeStore.pendingUpdates.returns({ 'an-id': { id: 'an-id' } });
       activeStreamer.applyPendingUpdates();
-      assert.calledWith(
-        fakeAnnotationMapper.loadAnnotations,
-        fixtures.createNotification.payload
-      );
+      assert.calledWith(fakeStore.addAnnotations, [{ id: 'an-id' }]);
     });
 
-    it('applies pending deletions', function() {
-      fakeStore.annotationExists.returns(true);
+    it('applies pending deletions', function () {
+      fakeStore.pendingDeletions.returns({ 'an-id': true });
 
-      fakeWebSocket.notify(fixtures.deleteNotification);
       activeStreamer.applyPendingUpdates();
 
       assert.calledWithMatch(
-        fakeAnnotationMapper.unloadAnnotations,
+        fakeStore.removeAnnotations,
         sinon.match([{ id: 'an-id' }])
       );
     });
 
-    it('clears the set of pending updates', function() {
+    it('clears the set of pending updates', function () {
       fakeWebSocket.notify(fixtures.createNotification);
       activeStreamer.applyPendingUpdates();
-      assert.equal(activeStreamer.countPendingUpdates(), 0);
+      assert.calledWith(fakeStore.clearPendingUpdates);
     });
   });
 
-  describe('when annotations are unloaded, updated or deleted', function() {
-    const changeEvents = [
-      { event: events.ANNOTATION_DELETED },
-      { event: events.ANNOTATION_UPDATED },
-      { event: events.ANNOTATIONS_UNLOADED },
-    ];
-
-    beforeEach(function() {
+  describe('session change notifications', function () {
+    it('updates the session when a notification is received', function () {
       createDefaultStreamer();
-      return activeStreamer.connect();
-    });
-
-    unroll(
-      'discards pending updates when #event occurs',
-      function(testCase) {
-        fakeWebSocket.notify(fixtures.createNotification);
-        assert.equal(activeStreamer.countPendingUpdates(), 1);
-        fakeRootScope.$broadcast(testCase.event, { id: 'an-id' });
-        assert.equal(activeStreamer.countPendingUpdates(), 0);
-      },
-      changeEvents
-    );
-
-    unroll(
-      'discards pending deletions when #event occurs',
-      function(testCase) {
-        fakeStore.annotationExists.returns(true);
-        fakeWebSocket.notify(fixtures.deleteNotification);
-
-        fakeRootScope.$broadcast(testCase.event, { id: 'an-id' });
-
-        assert.isFalse(activeStreamer.hasPendingDeletion('an-id'));
-      },
-      changeEvents
-    );
-  });
-
-  describe('when the focused group changes', function() {
-    it('clears pending updates and deletions', function() {
-      createDefaultStreamer();
-      return activeStreamer.connect().then(function() {
-        fakeWebSocket.notify(fixtures.createNotification);
-        fakeRootScope.$broadcast(events.GROUP_FOCUSED);
-
-        assert.equal(activeStreamer.countPendingUpdates(), 0);
-      });
-    });
-  });
-
-  describe('session change notifications', function() {
-    it('updates the session when a notification is received', function() {
-      createDefaultStreamer();
-      return activeStreamer.connect().then(function() {
+      return activeStreamer.connect().then(function () {
         const model = {
           groups: [
             {
@@ -461,82 +413,74 @@ describe('Streamer', function() {
     });
   });
 
-  describe('whoyouare notifications', function() {
-    beforeEach(function() {
+  describe('whoyouare notifications', function () {
+    beforeEach(function () {
       sinon.stub(console, 'warn');
     });
 
-    afterEach(function() {
+    afterEach(function () {
       console.warn.restore();
     });
 
-    unroll(
-      'does nothing if the userid matches the logged-in userid',
-      function(testCase) {
-        fakeStore.getState.returns({
-          session: {
-            userid: testCase.userid,
-          },
+    [
+      {
+        userid: 'acct:mr_bond@hypothes.is',
+        websocketUserid: 'acct:mr_bond@hypothes.is',
+      },
+      {
+        userid: null,
+        websocketUserid: null,
+      },
+    ].forEach(testCase => {
+      it('does nothing if the userid matches the logged-in userid', () => {
+        fakeStore.profile.returns({
+          userid: testCase.userid,
         });
         createDefaultStreamer();
-        return activeStreamer.connect().then(function() {
+        return activeStreamer.connect().then(function () {
           fakeWebSocket.notify({
             type: 'whoyouare',
             userid: testCase.websocketUserid,
           });
           assert.notCalled(console.warn);
         });
-      },
-      [
-        {
-          userid: 'acct:mr_bond@hypothes.is',
-          websocketUserid: 'acct:mr_bond@hypothes.is',
-        },
-        {
-          userid: null,
-          websocketUserid: null,
-        },
-      ]
-    );
+      });
+    });
 
-    unroll(
-      'logs a warning if the userid does not match the logged-in userid',
-      function(testCase) {
-        fakeStore.getState.returns({
-          session: {
-            userid: testCase.userid,
-          },
+    [
+      {
+        userid: 'acct:mr_bond@hypothes.is',
+        websocketUserid: 'acct:the_spanish_inquisition@hypothes.is',
+      },
+      {
+        userid: null,
+        websocketUserid: 'acct:the_spanish_inquisition@hypothes.is',
+      },
+    ].forEach(testCase => {
+      it('logs a warning if the userid does not match the logged-in userid', () => {
+        fakeStore.profile.returns({
+          userid: testCase.userid,
         });
         createDefaultStreamer();
-        return activeStreamer.connect().then(function() {
+        return activeStreamer.connect().then(function () {
           fakeWebSocket.notify({
             type: 'whoyouare',
             userid: testCase.websocketUserid,
           });
           assert.called(console.warn);
         });
-      },
-      [
-        {
-          userid: 'acct:mr_bond@hypothes.is',
-          websocketUserid: 'acct:the_spanish_inquisition@hypothes.is',
-        },
-        {
-          userid: null,
-          websocketUserid: 'acct:the_spanish_inquisition@hypothes.is',
-        },
-      ]
-    );
+      });
+    });
   });
 
-  describe('reconnections', function() {
-    it('resends configuration messages when a reconnection occurs', function() {
+  describe('reconnections', function () {
+    it('resends configuration messages when a reconnection occurs', function () {
       createDefaultStreamer();
-      return activeStreamer.connect().then(function() {
+      return activeStreamer.connect().then(function () {
         fakeWebSocket.messages = [];
         fakeWebSocket.emit('open');
 
-        const configMsgTypes = fakeWebSocket.messages.map(function(msg) {
+        const configMsgTypes = fakeWebSocket.messages.map(function (msg) {
           return msg.type || msg.messageType;
         });
         assert.deepEqual(configMsgTypes, ['client_id', 'whoami']);

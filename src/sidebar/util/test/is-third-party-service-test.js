@@ -1,6 +1,5 @@
-'use strict';
-
-const isThirdPartyService = require('../is-third-party-service');
+import isThirdPartyService from '../is-third-party-service';
+import { $imports } from '../is-third-party-service';
 
 describe('sidebar.util.isThirdPartyService', () => {
   let fakeServiceConfig;
@@ -10,14 +9,13 @@ describe('sidebar.util.isThirdPartyService', () => {
     fakeServiceConfig = sinon.stub();
     fakeSettings = { authDomain: 'hypothes.is' };
 
-    isThirdPartyService.$imports.$mock({
+    $imports.$mock({
       '../service-config': fakeServiceConfig,
-      '@noCallThru': true,
     });
   });
 
   afterEach(() => {
-    isThirdPartyService.$imports.$restore();
+    $imports.$restore();
   });
 
   it('returns false for first-party services', () => {

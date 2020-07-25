@@ -1,6 +1,4 @@
-'use strict';
-
-const urlUtil = require('../util/url-util');
+import * as urlUtil from '../util/url';
 
 /**
  * A function that returns an absolute URL given a link name and params, by
@@ -22,6 +20,7 @@ const urlUtil = require('../util/url-util');
  * always returns empty strings as the URLs. After the links object has been
  * received from the API this function starts returning the real URLs.
  *
+ * @callback ServiceUrlGetter
  * @param {string} linkName - The name of the link to expand
  * @param {object} params - The params with which to expand the link
  * @returns {string} The expanded absolute URL, or an empty string if the
@@ -30,18 +29,21 @@ const urlUtil = require('../util/url-util');
  *                 linkName is unknown
  * @throws {Error} If one or more of the params given isn't used in the URL
  *                 template
- *
+ */
+
+/**
+ * @return {ServiceUrlGetter}
  * @ngInject
  */
-function serviceUrl(store, apiRoutes) {
+export default function serviceUrl(store, apiRoutes) {
   apiRoutes
     .links()
     .then(store.updateLinks)
-    .catch(function(error) {
+    .catch(function (error) {
       console.warn('The links API request was rejected: ' + error.message);
     });
 
-  return function(linkName, params) {
+  return function (linkName, params) {
     const links = store.getState().links;
 
     if (links === null) {
@@ -65,5 +67,3 @@ function serviceUrl(store, apiRoutes) {
     return url.url;
   };
 }
-
-module.exports = serviceUrl;

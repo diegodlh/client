@@ -1,144 +1,121 @@
-// Colors and shades of gray
-// Names courtesy of http://chir.ag/projects/name-that-color
+@use "sass:color";
 
+// Greys (layout colors)
+// These may be used for non-textual styling of components and elements
 $white: #fff !default;
-$black: #000 !default;
 
+// Interim color variable for migration purposes.
+// Used as very-subtle background color for form fields. $grey-1 is too dark.
+$grey-0: #fafafa;
 
-// Grays
-// ---------------------
-$gray: #777 !default;
-$gray-dark: #585858;
-$gray-light: #969696 !default;
-$gray-lighter: #d3d3d3 !default;
-$gray-lightest: #f9f9f9 !default;
+$grey-1: #f2f2f2;
+$grey-2: #ececec;
 
-$color-mine-shaft: #3A3A3A;
-$color-dove-gray: #626262;
-$color-gray: #818181;
-$color-silver-chalice: #a6a6a6;
-$color-silver: #bbb;
-$color-seashell: #f1f1f1;
+$grey-3: #dbdbdb;
 
+$grey-4: #a6a6a6;
 
-// Colors
-// ---------------------
-$color-cardinal: #bd1c2b;
-$brand-color: #bd1c2b !default;
+// Interim color variable for migration purposes, as the step between `$grey-4`
+// and `$grey-5` is large. Represents `base-semi` in proposed future palette,
+// minus blue tint.
+$grey-semi: #9c9c9c;
 
-$button-text-color: $gray-dark !default;
-$button-background-start: $white !default;
-$button-background-end: #f0f0f0 !default;
-$button-background-gradient: to bottom, $button-background-start, $button-background-end !default;
+// This is the lightest grey admissible on a white, $grey-0 or $grey-1
+// background to meet WCAG-AA text contrast requirements.
+$grey-5: #737373;
 
-$error-color: #f0480c !default;
-$success-color: #1cbd41 !default;
+// Interim color variable for migration purposes, as the step between `$grey-5`
+// and `$grey-6` is large. Represents `base-mid` in proposed future palette,
+// minus blue tint.
+// This is the lightest grey admissible on $grey-2, $grey-3
+$grey-mid: #595959;
 
+$grey-6: #3f3f3f;
 
-// Variables for the new color palette
-// ------------------------------------
-$grey-1: #F2F2F2;
-$grey-2: #ECECEC;
-$grey-3: #DBDBDB;
-$grey-4: #A6A6A6;
-$grey-5: #7A7A7A;
-$grey-6: #3F3F3F;
 $grey-7: #202020;
 
-$brand: #BD1C2B;
-$highlight: #58CEF4;
+// Text colors
+$color-text: $grey-7;
+$color-text--light: $grey-5;
+// Text color when used on a dark background
+$color-text--inverted: $grey-1;
 
+// Other colors
+$color-success: #00a36d;
+$color-notice: #fbc168;
+$color-error: #d93c3f;
 
-@function color-weight($c, $n: 500) {
-  @if $n == 50 {
-    @return tint($c, 85%);
-  } @if $n == 100 {
-    @return tint($c, 70%);
-  } @if $n == 200 {
-    @return tint($c, 50%);
-  } @if $n == 300 {
-    @return tint($c, 30%);
-  } @if $n == 400 {
-    @return tint($c, 15%);
-  } @if $n == 500 {
-    @return $c;
-  } @if $n == 600 {
-    @return shade($c, 15%);
-  } @if $n == 700 {
-    @return shade($c, 30%);
-  } @if $n == 800 {
-    @return shade($c, 50%);
-  } @if $n == 900 {
-    @return shade($c, 85%);
-  }
-}
+$color-brand: #bd1c2b;
+$color-quote: #58cef4;
 
+$color-focus-outline: #51a7e8;
+$color-focus-shadow: color.scale($color-focus-outline, $alpha: -50%);
+
+$color-highlight: rgba(255, 255, 60, 0.4);
+$color-highlight-second: rgba(206, 206, 60, 0.4);
+$color-highlight-focused: rgba(156, 230, 255, 0.5);
 
 // Scaffolding
 // -------------------------
-$body-background:        $white !default;
-$text-color:             $gray-dark !default;
-
+$color-background: $white;
 
 // Links
 // -------------------------
-$link-color:             $brand-color !default;
-$link-color-hover:       color-weight($brand-color, 700) !default;
-
+$color-link: $color-brand !default;
+$color-link-hover: #84141e !default;
 
 // Typography
 // -------------------------
-$sans-font-family:        "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif !default;
-$mono-font-family:        Open Sans Mono, Menlo, DejaVu Sans Mono, monospace !default;
+$sans-font-family: 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande',
+  sans-serif !default;
+$mono-font-family: Open Sans Mono, Menlo, DejaVu Sans Mono, monospace !default;
 
-$base-font-size:          16px !default;
-$base-line-height:        20px !default;
+$font-size--xsmall: 10px;
+$font-size--small: 11px;
+$font-size--medium: 13px;
+$font-size--large: 14px;
+$line-height: 1.4;
 
-$body1-font-size:         12px;
-$body1-line-height:       1.4em;
+// Minimum font size for <input> fields on iOS. If the font size is smaller than
+// this, iOS will zoom into the field when focused.
+$touch-input-font-size: 16px;
 
-$body2-font-size:         14px;
-
-$title-font-weight:       bold;
-
-$normal-font-size: 13px;
-$normal-line-height: 17px;
-
-$small-font-size: 11px;
-$small-line-height: 12px;
-
-
-// Layout margins
+// Layout spacing
 // -------------------------
-$layout-h-margin: 15px;
+$layout-space: 1em;
+$layout-space--xxsmall: $layout-space * (1/4);
+$layout-space--xsmall: $layout-space * (1/2);
+$layout-space--small: $layout-space * (3/4);
+$layout-space--medium: $layout-space;
 
-
-// Z-Index Scale
-// -------------------------
-$zindex-tooltip: 20;
-
+// Minimum recommended size for tap targets on mobile.
+// This value originated from Apple's Human Interface Guidelines.
+$touch-target-size: 44px;
 
 // Other Variables
 // -------------------------
 $bucket-bar-width: 22px;
-$highlight-color: rgba(255, 255, 60, 0.3);
-$highlight-color-second: rgba(206, 206, 60, 0.4);
-$highlight-color-third: rgba(192, 192, 49, 0.4);
-$highlight-color-focus: rgba(156, 230, 255, 0.5);
 $top-bar-height: 40px;
-$group-list-width: 280px;
+$border-radius: 2px;
+
+$color-border: $grey-3;
+$border-width: 1px;
+
+$icon-size--xsmall: 10px;
+$icon-size--small: 12px;
+$icon-size--medium: 16px;
+$icon-size--large: 24px;
+
 $toolbar-button-background: rgba(255, 255, 255, 0.7);
 
-// Mixins
-// ------
-@mixin font-small {
-  font-size: $small-font-size;
-  line-height: $small-line-height;
-  font-weight: 400;
-}
+// Transitional Typography (Temporary)
+// -----------------------------------
 
-@mixin font-normal {
-  font-size: $normal-font-size;
-  line-height: $normal-line-height;
-  font-weight: 400;
-}
+$annotator-base-font-size: 14px;
+$annotator-base-line-height: 20px;
+
+$annotator-adder-font-size: 12px;
+$annotator-adder-line-height: 1em;
+
+$annotator-bucket-bar-font-size: 10px;
+$annotator-bucket-bar-line-height: 14px;

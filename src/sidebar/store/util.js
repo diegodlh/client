@@ -1,61 +1,59 @@
-'use strict';
-
 /**
  * Return an object where each key in `updateFns` is mapped to the key itself.
+ *
+ * @template {Object.<string,Function>} T
+ * @param {T} reducers - Object containing reducer functions
+ * @return {{ [index in keyof T]: string }}
  */
-function actionTypes(updateFns) {
-  return Object.keys(updateFns).reduce(function(types, key) {
+export function actionTypes(reducers) {
+  return Object.keys(reducers).reduce(function (types, key) {
     types[key] = key;
     return types;
-  }, {});
+  }, /** @type {any} */ ({}));
 }
 
 /**
  * Given objects which map action names to update functions, this returns a
  * reducer function that can be passed to the redux `createStore` function.
  *
- * @param {Object[]} actionToUpdateFn - Objects mapping action names to update
+ * @param {Object} actionToUpdateFn - Object mapping action names to update
  *                                      functions.
  */
-function createReducer(...actionToUpdateFn) {
-  // Combine the (action name => update function) maps together into a single
-  // (action name => update functions) map.
-  const actionToUpdateFns = {};
-  actionToUpdateFn.forEach(map => {
-    Object.keys(map).forEach(k => {
-      actionToUpdateFns[k] = (actionToUpdateFns[k] || []).concat(map[k]);
-    });
-  });
-
-  return (state, action) => {
-    const fns = actionToUpdateFns[action.type];
-    if (!fns) {
+export function createReducer(actionToUpdateFn) {
+  return (state = {}, action) => {
+    const fn = actionToUpdateFn[action.type];
+    if (!fn) {
       return state;
     }
-    return Object.assign({}, state, ...fns.map(f => f(state, action)));
+    // Some modules return an array rather than an object. They need to be
+    // handled differently so we don't cast them to an object.
+    if (Array.isArray(state)) {
+      return [...fn(state, action)];
+    }
+    return {
+      ...state,
+      ...fn(state, action),
+    };
   };
 }
 
 /**
- * Takes an object mapping keys to selector functions and the `getState()`
- * function from the store and returns an object with the same keys but where
- * the values are functions that call the original functions with the `state`
- * argument set to the current value of `getState()`
+ * Takes a mapping of namespaced modules and the store's `getState()` function
+ * and returns an aggregated flat object with all the selectors at the root
+ * level. The keys to this object are functions that call the original
+ * selectors with the `state` argument set to the current value of `getState()`.
  */
-function bindSelectors(selectors, getState) {
-  return Object.keys(selectors).reduce(function(bound, key) {
-    const selector = selectors[key];
-    bound[key] = function() {
-      const args = [].slice.apply(arguments);
-      args.unshift(getState());
-      return selector.apply(null, args);
-    };
-    return bound;
-  }, {});
+export function bindSelectors(namespaces, getState) {
+  const totalSelectors = {};
+  Object.keys(namespaces).forEach(namespace => {
+    const selectors = namespaces[namespace].selectors;
+    Object.keys(selectors).forEach(selector => {
+      totalSelectors[selector] = function () {
+        const args = [].slice.apply(arguments);
+        args.unshift(getState());
+        return selectors[selector].apply(null, args);
+      };
+    });
+  });
+  return totalSelectors;
 }
-
-module.exports = {
-  actionTypes: actionTypes,
-  bindSelectors: bindSelectors,
-  createReducer: createReducer,
-};

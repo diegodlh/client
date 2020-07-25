@@ -1,9 +1,11 @@
-'use strict';
+import { mount } from 'enzyme';
+import { createElement } from 'preact';
+import { act } from 'preact/test-utils';
 
-const { createElement } = require('preact');
-const { mount } = require('enzyme');
+import Timestamp from '../timestamp';
+import { $imports } from '../timestamp';
 
-const Timestamp = require('../timestamp');
+import { checkAccessibility } from '../../../test-util/accessibility';
 
 describe('Timestamp', () => {
   let clock;
@@ -16,21 +18,21 @@ describe('Timestamp', () => {
       decayingInterval: sinon.stub(),
     };
 
-    Timestamp.$imports.$mock({
+    $imports.$mock({
       '../util/time': fakeTime,
     });
   });
 
   afterEach(() => {
     clock.restore();
-    Timestamp.$imports.$restore();
+    $imports.$restore();
   });
 
   const createTimestamp = props => mount(<Timestamp {...props} />);
 
   it('displays a link if an "href" is provided', () => {
     const wrapper = createTimestamp({
-      timestamp: '',
+      timestamp: '2016-06-10',
       href: 'https://example.com',
     });
     const link = wrapper.find('a');
@@ -39,7 +41,7 @@ describe('Timestamp', () => {
   });
 
   it('displays static text if no "href" is provided', () => {
-    const wrapper = createTimestamp({ timestamp: '' });
+    const wrapper = createTimestamp({ timestamp: '2016-06-10' });
     assert.equal(wrapper.find('a').length, 0);
     assert.equal(wrapper.find('span').length, 1);
   });
@@ -72,7 +74,10 @@ describe('Timestamp', () => {
       });
       fakeTime.toFuzzyString.returns('60 jiffies');
 
-      clock.tick(1000);
+      act(() => {
+        clock.tick(1000);
+      });
+      wrapper.update();
 
       assert.equal(wrapper.text(), '60 jiffies');
     });
@@ -102,7 +107,7 @@ describe('Timestamp', () => {
       it(`displays an absolute timestamp (${variant})`, () => {
         const date = new Date('2016-06-10T10:04:04.939Z');
         const format = date => `formatted:${date}`;
-        Timestamp.$imports.$mock({
+        $imports.$mock({
           '../util/date': {
             format,
           },
@@ -122,4 +127,19 @@ describe('Timestamp', () => {
       });
     });
   });
+
+  it(
+    'should pass a11y checks',
+    checkAccessibility({
+      content: () => {
+        // Fake timers break axe-core.
+        clock.restore();
+
+        return createTimestamp({
+          timestamp: '2016-06-10T10:04:04.939Z',
+          href: 'https://annotate.com/a/1234',
+        });
+      },
+    })
+  );
 });

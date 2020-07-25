@@ -1,64 +1,26 @@
-@import '../base';
-@import '../mixins/icons';
+@use "sass:meta";
+@use '../variables' as var;
+@use '../mixins/focus';
+@use '../mixins/reset';
+@use '../mixins/utils';
 
-@import './adder';
+// Shared components.
+@use '../components/svg-icon';
 
-$base-font-size: 14px;
+// Annotator-specific components.
+@use './adder';
+@use './bucket-bar';
+@use './highlights';
 
-//HIGHLIGHTS////////////////////////////////
-.annotator-highlights-always-on {
-  .annotator-hl {
-    background-color: $highlight-color;
-    cursor: pointer;
-  }
-
-  .annotator-hl .annotator-hl {
-    background-color: $highlight-color-second;
-  }
-
-  .annotator-hl .annotator-hl .annotator-hl {
-    background-color: $highlight-color-third;
-  }
-}
-
-.annotator-hl.annotator-hl-focused {
-  background-color: $highlight-color-focus !important;
-
-  .annotator-hl {
-    background-color: transparent !important;
-  }
-}
+$sidebar-collapse-transition-time: 150ms;
 
 // Sidebar
 .annotator-frame {
-  // a CSS reset which attempts to prevent the host page's styles
-  // from affecting the styles of the sidebar.
-  //
-  // FIXME - This component and other annotator components which currently
-  // live on the page could be isolated from the host page's CSS/JS via
-  // transparent same-origin iframes
-  @import '../reset';
-  @include nested-reset;
-  @include reset-box-model;
-
-  // frame styles
-  @import './bucket-bar';
-  user-select: none;
-  @include grey-background;
-  direction: ltr;
-  background: none;
-  font-size: $base-font-size;
-  line-height: $base-line-height;
-  height: 100%;
-  position: fixed;
-  top: 0;
-  left: 100%;
-  z-index: 2147483647;
-  -webkit-tap-highlight-color: rgba(255, 255, 255, 0);
-
-  &.annotator-collapsed {
-    margin-left: 0;
-  }
+  // CSS reset which attempts to isolate this element and its children from
+  // host page styles.
+  @include meta.load-css('../reset');
+  @include reset.nested-reset;
+  @include reset.reset-box-model;
 
   * {
     background: none;
@@ -68,16 +30,37 @@ $base-font-size: 14px;
     width: initial;
   }
 
+  // frame styles
+  user-select: none;
+  direction: ltr;
+  background: none;
+  font-size: var.$annotator-base-font-size;
+  line-height: var.$annotator-base-line-height;
+  height: 100%;
+  position: fixed;
+  top: 0;
+  left: 100%;
+  z-index: 2147483647;
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0);
+
+  &.annotator-collapsed {
+    margin-left: 0;
+
+    .h-sidebar-iframe {
+      // Add a transition when collapsing only. This serves to delay
+      // the effect until the sidebar finishes closing. Visibility is
+      // a boolean value and can not actually animate.
+      transition: visibility $sidebar-collapse-transition-time;
+      visibility: hidden;
+    }
+  }
+
   .h-sidebar-iframe {
     border: none;
     height: 100%;
     width: 100%;
     z-index: 3;
     position: relative;
-  }
-
-  @include icons {
-    font-family: 'h';
   }
 
   // the vertical toolbar at the left-edge of the sidebar
@@ -90,44 +73,34 @@ $base-font-size: 14px;
   // have higher specificity
   .annotator-toolbar {
     position: absolute;
-    left: -($bucket-bar-width + 18px - 7px);
+    left: -(var.$bucket-bar-width + 18px - 7px);
     width: 37px;
     z-index: 2;
-
-    ul {
-      height: 100%;
-    }
-
-    ul, li {
-      box-sizing: border-box;
-      list-style: none;
-      @include reset-box-model;
-    }
   }
 
   .annotator-frame-button {
+    @include focus.outline-on-keyboard-focus;
+
     transition: background-color .25s .25s, color .25s .25s;
-    @include smallshadow;
-    background: $toolbar-button-background;
-    border: solid 1px $gray-lighter;
+    @include utils.shadow;
+    background: var.$toolbar-button-background;
+    border: solid 1px var.$grey-3;
     border-radius: 4px;
-    color: $gray-light;
+    color: var.$grey-5;
     text-decoration: none;
     height: 30px;
     width: 30px;
-    padding: 0;
-    font-size: 16px;
+    padding: 1px 6px;
     margin-bottom: 5px;
 
-    &:focus, &:hover {
-      background-color: $white;
-      outline: 0;
-      color: $text-color;
+    &:focus,
+    &:hover {
+      background-color: var.$white;
+      color: var.$grey-7;
     }
 
     &:active {
-      transition: background-color .25s;
-      background-color: $gray-light;
+      background-color: var.$grey-semi;
     }
   }
 
@@ -138,7 +111,8 @@ $base-font-size: 14px;
     padding-right: 6px;
     width: 36px;
     margin-bottom: 10px;
-    height: $top-bar-height;
+    height: var.$top-bar-height;
+    color: var.$grey-semi;
   }
 
   .annotator-frame-button--sidebar_close {
@@ -203,26 +177,9 @@ $base-font-size: 14px;
 
 @media screen and (min-width: 37.5em) {
   .annotator-frame {
-    transition: margin-left .15s cubic-bezier(.55, 0, .2, .8);
+    transition: margin-left $sidebar-collapse-transition-time
+      cubic-bezier(0.55, 0, 0.2, 0.8);
     width: 428px;
     margin-left: -428px;
   }
-}
-
-/*
-  Widescreen layout
-  912-1887 px
-  Zoomed in above 912 px
-*/
-
-@media screen and (min-width: 57em) {
-}
-
-/*
-  Huge-screen layout
-  1888-2520 px
-  Zoomed in above 1920 px
-*/
-
-@media screen and (min-width: 118em) {
 }

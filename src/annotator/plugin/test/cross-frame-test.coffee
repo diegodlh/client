@@ -1,5 +1,8 @@
+$ = require('jquery')
+
 Plugin = require('../../plugin')
 CrossFrame = require('../cross-frame')
+{ $imports } = require('../cross-frame')
 
 describe 'CrossFrame', ->
   fakeDiscovery = null
@@ -10,7 +13,7 @@ describe 'CrossFrame', ->
   proxyBridge = null
   proxyAnnotationSync = null
 
-  sandbox = sinon.sandbox.create()
+  sandbox = sinon.createSandbox()
 
   createCrossFrame = (options) ->
     defaults =
@@ -39,7 +42,7 @@ describe 'CrossFrame', ->
     proxyDiscovery = sandbox.stub().returns(fakeDiscovery)
     proxyBridge = sandbox.stub().returns(fakeBridge)
 
-    CrossFrame.$imports.$mock({
+    $imports.$mock({
       '../plugin': Plugin,
       '../annotation-sync': proxyAnnotationSync,
       '../../shared/bridge': proxyBridge,
@@ -48,7 +51,7 @@ describe 'CrossFrame', ->
 
   afterEach ->
     sandbox.restore()
-    CrossFrame.$imports.$restore()
+    $imports.$restore()
 
   describe 'CrossFrame constructor', ->
     it 'instantiates the Discovery component', ->

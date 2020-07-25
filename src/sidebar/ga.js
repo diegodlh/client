@@ -1,8 +1,8 @@
-'use strict';
+// @ts-nocheck - The `ga` property is unknown.
 
 let loaded = false;
 
-module.exports = function(trackingId) {
+export default function loadGoogleAnalytics(trackingId) {
   // small measure to make we do not accidentally
   // load the analytics scripts more than once
   if (loaded) {
@@ -14,11 +14,11 @@ module.exports = function(trackingId) {
   /* eslint-disable */
 
   // Google Analytics snippet to load the analytics script
-  (function(i, s, o, g, r, a, m) {
+  (function (i, s, o, g, r, a, m) {
     i['GoogleAnalyticsObject'] = r;
     (i[r] =
       i[r] ||
-      function() {
+      function () {
         (i[r].q = i[r].q || []).push(arguments);
       }),
       (i[r].l = 1 * new Date());
@@ -48,4 +48,4 @@ module.exports = function(trackingId) {
   ga('set', 'anonymizeIp', true);
 
   /* eslint-enable */
-};
+}

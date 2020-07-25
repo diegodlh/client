@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Commands for toggling markdown formatting of a selection
  * in an input field.
@@ -12,18 +10,19 @@
 /**
  * Describes the state of a plain text input field.
  *
- * interface EditorState {
- *   text: string;
- *   selectionStart: number;
- *   selectionEnd: number;
- * }
+ * @typedef EditorState
+ * @prop {string} text
+ * @prop {number} selectionStart
+ * @prop {number} selectionEnd
  */
 
 /**
  * Types of Markdown link that can be inserted with
  * convertSelectionToLink()
+ *
+ * @enum {number}
  */
-const LinkType = {
+export const LinkType = {
   ANCHOR_LINK: 0,
   IMAGE_LINK: 1,
 };
@@ -87,7 +86,7 @@ function replaceText(state, pos, length, text) {
  * @param {LinkType} linkType - The type of link to insert.
  * @return {EditorState} - The new state of the input field.
  */
-function convertSelectionToLink(state, linkType) {
+export function convertSelectionToLink(state, linkType) {
   if (typeof linkType === 'undefined') {
     linkType = LinkType.ANCHOR_LINK;
   }
@@ -136,13 +135,13 @@ function convertSelectionToLink(state, linkType) {
  * @param {EditorState} state - The current state of the input field.
  * @param {string} prefix - The prefix to add or remove
  *                          before the selection.
- * @param {string?} suffix - The suffix to add or remove after the selection,
+ * @param {string|undefined} suffix - The suffix to add or remove after the selection,
  *                           defaults to being the same as the prefix.
  * @param {string} placeholder - The text to insert between 'prefix' and
  *                               'suffix' if the input text is empty.
  * @return {EditorState} The new state of the input field.
  */
-function toggleSpanStyle(state, prefix, suffix, placeholder) {
+export function toggleSpanStyle(state, prefix, suffix, placeholder) {
   if (typeof suffix === 'undefined') {
     suffix = prefix;
   }
@@ -202,7 +201,7 @@ function endOfLine(str, pos) {
  * @param {EditorState} state - The initial state of the input field
  * @param {number} start - The start position within the input text
  * @param {number} end - The end position within the input text
- * @param {(EditorState, number) => EditorState} callback
+ * @param {(s: EditorState, start: number, end: number) => EditorState} callback
  *  - Callback which is invoked with the current state of the input and
  *    the start of the current line and returns the new state of the input.
  */
@@ -236,14 +235,14 @@ function transformLines(state, start, end, callback) {
  *                          of the selection.
  * @return {EditorState} - The new state of the input field.
  */
-function toggleBlockStyle(state, prefix) {
+export function toggleBlockStyle(state, prefix) {
   const start = state.selectionStart;
   const end = state.selectionEnd;
 
   // Test whether all lines in the selected range already have the style
   // applied
   let blockHasStyle = true;
-  transformLines(state, start, end, function(state, lineStart) {
+  transformLines(state, start, end, function (state, lineStart) {
     if (state.text.slice(lineStart, lineStart + prefix.length) !== prefix) {
       blockHasStyle = false;
     }
@@ -252,12 +251,12 @@ function toggleBlockStyle(state, prefix) {
 
   if (blockHasStyle) {
     // Remove the formatting.
-    return transformLines(state, start, end, function(state, lineStart) {
+    return transformLines(state, start, end, function (state, lineStart) {
       return replaceText(state, lineStart, prefix.length, '');
     });
   } else {
     // Add the block style to any lines which do not already have it applied
-    return transformLines(state, start, end, function(state, lineStart) {
+    return transformLines(state, start, end, function (state, lineStart) {
       if (state.text.slice(lineStart, lineStart + prefix.length) === prefix) {
         return state;
       } else {
@@ -266,10 +265,3 @@ function toggleBlockStyle(state, prefix) {
     });
   }
 }
-
-module.exports = {
-  toggleSpanStyle: toggleSpanStyle,
-  toggleBlockStyle: toggleBlockStyle,
-  convertSelectionToLink: convertSelectionToLink,
-  LinkType: LinkType,
-};

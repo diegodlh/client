@@ -1,23 +1,23 @@
-'use strict';
+import { mount } from 'enzyme';
+import { createElement } from 'preact';
 
-const { createElement } = require('preact');
-const { shallow } = require('enzyme');
+import bridgeEvents from '../../../shared/bridge-events';
+import UserMenu from '../user-menu';
+import { $imports } from '../user-menu';
 
-const UserMenu = require('../user-menu');
-const MenuItem = require('../menu-item');
+import mockImportedComponents from '../../../test-util/mock-imported-components';
 
 describe('UserMenu', () => {
   let fakeAuth;
   let fakeBridge;
   let fakeIsThirdPartyUser;
   let fakeOnLogout;
-  let fakeProfileBridgeEvent;
   let fakeServiceConfig;
   let fakeServiceUrl;
   let fakeSettings;
 
   const createUserMenu = () => {
-    return shallow(
+    return mount(
       <UserMenu
         auth={fakeAuth}
         bridge={fakeBridge}
@@ -25,12 +25,12 @@ describe('UserMenu', () => {
         serviceUrl={fakeServiceUrl}
         settings={fakeSettings}
       />
-    ).dive(); // Dive needed because this component uses `withServices`
+    );
   };
 
   const findMenuItem = (wrapper, labelText) => {
     return wrapper
-      .find(MenuItem)
+      .find('MenuItem')
       .filterWhere(n => n.prop('label') === labelText);
   };
 
@@ -44,26 +44,23 @@ describe('UserMenu', () => {
     fakeBridge = { call: sinon.stub() };
     fakeIsThirdPartyUser = sinon.stub();
     fakeOnLogout = sinon.stub();
-    fakeProfileBridgeEvent = 'profile-requested';
     fakeServiceConfig = sinon.stub();
     fakeServiceUrl = sinon.stub();
     fakeSettings = {
       authDomain: 'hypothes.is',
     };
 
-    UserMenu.$imports.$mock({
+    $imports.$mock(mockImportedComponents());
+    $imports.$mock({
       '../util/account-id': {
         isThirdPartyUser: fakeIsThirdPartyUser,
       },
       '../service-config': fakeServiceConfig,
-      '../../shared/bridge-events': {
-        PROFILE_REQUESTED: fakeProfileBridgeEvent,
-      },
     });
   });
 
   afterEach(() => {
-    UserMenu.$imports.$restore();
+    $imports.$restore();
   });
 
   describe('profile menu item', () => {
@@ -148,7 +145,7 @@ describe('UserMenu', () => {
         onProfileSelected();
 
         assert.equal(fakeBridge.call.callCount, 1);
-        assert.calledWith(fakeBridge.call, fakeProfileBridgeEvent);
+        assert.calledWith(fakeBridge.call, bridgeEvents.PROFILE_REQUESTED);
       });
 
       it('should not fire profile event for first-party user', () => {

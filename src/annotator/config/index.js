@@ -1,13 +1,12 @@
-'use strict';
-
-const settingsFrom = require('./settings');
+import settingsFrom from './settings';
+import { toBoolean } from '../../shared/type-coercions';
 
 /**
  * Reads the Hypothesis configuration from the environment.
  *
  * @param {Window} window_ - The Window object to read config from.
  */
-function configFrom(window_) {
+export default function configFrom(window_) {
   const settings = settingsFrom(window_);
   return {
     annotations: settings.annotations,
@@ -24,11 +23,14 @@ function configFrom(window_) {
       'enableExperimentalNewNoteButton'
     ),
     group: settings.group,
+    focus: settings.hostPageSetting('focus'),
     theme: settings.hostPageSetting('theme'),
     usernameUrl: settings.hostPageSetting('usernameUrl'),
     onLayoutChange: settings.hostPageSetting('onLayoutChange'),
     openSidebar: settings.hostPageSetting('openSidebar', {
       allowInBrowserExt: true,
+      // Coerce value to a boolean because it may come from via as a string
+      coerce: toBoolean,
     }),
     query: settings.query,
     requestConfigFromFrame: settings.hostPageSetting('requestConfigFromFrame'),
@@ -45,5 +47,3 @@ function configFrom(window_) {
     ),
   };
 }
-
-module.exports = configFrom;

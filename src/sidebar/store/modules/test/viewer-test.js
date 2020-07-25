@@ -1,22 +1,41 @@
-'use strict';
+import createStore from '../../create-store';
+import viewer from '../viewer';
 
-const viewer = require('../viewer');
+describe('store/modules/viewer', function () {
+  let store;
 
-const util = require('../../util');
+  beforeEach(() => {
+    store = createStore([viewer]);
+  });
 
-const { init, actions, selectors } = viewer;
-const update = util.createReducer(viewer.update);
-
-describe('viewer reducer', function() {
-  describe('#setAppIsSidebar', function() {
-    it('sets a flag indicating that the app is the sidebar', function() {
-      const state = update(init(), actions.setAppIsSidebar(true));
-      assert.isTrue(selectors.isSidebar(state));
+  describe('#setShowHighlights', function () {
+    it('sets a flag indicating that highlights are visible', function () {
+      store.setShowHighlights(true);
+      assert.isTrue(store.getState().viewer.visibleHighlights);
     });
 
-    it('sets a flag indicating that the app is not the sidebar', function() {
-      const state = update(init(), actions.setAppIsSidebar(false));
-      assert.isFalse(selectors.isSidebar(state));
+    it('sets a flag indicating that highlights are not visible', function () {
+      store.setShowHighlights(false);
+      assert.isFalse(store.getState().viewer.visibleHighlights);
+    });
+  });
+
+  describe('hasSidebarOpened', () => {
+    it('is `false` if sidebar has never been opened', () => {
+      assert.isFalse(store.hasSidebarOpened());
+      store.setSidebarOpened(false);
+      assert.isFalse(store.hasSidebarOpened());
+    });
+
+    it('is `true` if sidebar has been opened', () => {
+      store.setSidebarOpened(true);
+      assert.isTrue(store.hasSidebarOpened());
+    });
+
+    it('is `true` if sidebar is closed after being opened', () => {
+      store.setSidebarOpened(true);
+      store.setSidebarOpened(false);
+      assert.isTrue(store.hasSidebarOpened());
     });
   });
 });

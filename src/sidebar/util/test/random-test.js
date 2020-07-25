@@ -1,6 +1,4 @@
-'use strict';
-
-const random = require('../random');
+import * as random from '../random';
 
 describe('sidebar.util.random', () => {
   describe('#generateHexString', () => {

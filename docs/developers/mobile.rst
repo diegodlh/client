@@ -13,11 +13,14 @@ tested with at least current versions of iOS Safari and Chrome for Android.
 
 #. Configure h to allow incoming connections from other systems
    by editing ``conf/development-app.ini`` and changing the ``host`` setting from
-   ``localhost`` to ``0.0.0.0``.
+   ``localhost`` to ``0.0.0.0``. You will need to restart the h dev server after
+   making this change.
 
-#. Get the IP address or hostname of your development system (``<HOSTNAME>``
+#. Get the hostname of your development system (``<HOSTNAME>``
    in the steps below). You can do this using the ``hostname`` terminal command on
-   Mac/Linux.
+   macOS/Linux.
+
+   On macOS, this will typically be something like "Bobs-MacBookPro.local".
 
    .. tip::
 
@@ -26,39 +29,21 @@ tested with at least current versions of iOS Safari and Chrome for Android.
       accessible from other devices on the network. If you have problems using
       the hostname, try using the IP address instead.
 
-#. Set the :envvar:`CLIENT_URL` environment variable to configure h
-   to load the client from this host and start the dev server:
-
-   .. code-block:: sh
-
-      # In the h repository
-
-      # Configure the URL that the client is loaded from in pages
-      # that embed Hypothesis
-      export CLIENT_URL=http://<HOSTNAME>:3001/hypothesis
-
-      make dev
-
-#. Set the :envvar:`SIDEBAR_APP_URL` and :envvar:`PACKAGE_SERVER_HOSTNAME`
-   environment variables to load assets from this hostname and start the dev
-   server:
-
-   .. code-block:: sh
-
-      # In the client repository
-
-      # Set URL which sidebar app ("app.html") is loaded from
-      export SIDEBAR_APP_URL=http://<HOSTNAME>:5000/app.html
-      # Set hostname used when generating client asset URLs
-      export PACKAGE_SERVER_HOSTNAME=<HOSTNAME>
-
-      make dev
-
-   .. tip::
-
-      When ``make dev`` runs, it will print out the URLs used for h
-      and client assets. These should include ``<HOSTNAME>`` instead of
-      ``localhost``.
-
 #. On your mobile device, go to a page which has the client embedded such as
    ``http://<HOSTNAME>:3000`` or ``http://<HOSTNAME>:5000/docs/help``.
+
+   These URLs will also work on your development system.
+
+
+Troubleshooting
+###############
+
+- If logging into the client does not work when the client is accessed via
+  a non-localhost URL, make sure the "Redirect URL" for the Hypothesis client's
+  "OAuth client" (managed at http://localhost:5000/admin/oauthclients) is
+  set to ``{current_scheme}://{current_host}:5000``:
+
+  .. image:: edit-oauth-client.png
+
+- Make sure that you are not overriding the ``CLIENT_URL`` env var in your h
+  environment or ``SIDEBAR_APP_URL`` env var in your client dev environment

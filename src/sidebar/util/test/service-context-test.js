@@ -1,14 +1,8 @@
-'use strict';
+import { mount } from 'enzyme';
+import { createElement, render } from 'preact';
+import propTypes from 'prop-types';
 
-const { mount } = require('enzyme');
-const propTypes = require('prop-types');
-const { createElement, render } = require('preact');
-
-const {
-  ServiceContext,
-  withServices,
-  useService,
-} = require('../service-context');
+import { ServiceContext, withServices, useService } from '../service-context';
 
 describe('service-context', () => {
   describe('withServices', () => {
@@ -84,10 +78,7 @@ describe('service-context', () => {
   describe('useService', () => {
     it('returns the named service', () => {
       const injector = {
-        get: sinon
-          .stub()
-          .withArgs('aService')
-          .returns('aValue'),
+        get: sinon.stub().withArgs('aService').returns('aValue'),
       };
       function TestComponent() {
         const value = useService('aService');

@@ -1,4 +1,8 @@
-'use strict';
+/**
+ * @typedef {import('../../types/api').Annotation} Annotation
+ */
+
+import { quote } from '../util/annotation-metadata';
 
 // Prevent Babel inserting helper code after `@ngInject` comment below which
 // breaks browserify-ngannotate.
@@ -12,6 +16,18 @@ function displayName(ann) {
 }
 
 /**
+ * @typedef Filter
+ * @prop {(ann: Annotation) => boolean} matches
+ */
+
+/**
+ * @typedef Checker
+ * @prop {(ann: Annotation) => boolean} autofalse
+ * @prop {(ann: Annotation) => any|any[]} value
+ * @prop {(term: any, value: any) => boolean} match
+ */
+
+/**
  * Filter annotations against parsed search queries.
  *
  * When the user enters a query in the search box, the query is parsed using
@@ -20,7 +36,7 @@ function displayName(ann) {
  * which do not match the filter are then hidden.
  */
 // @ngInject
-function viewFilter(unicode) {
+export default function ViewFilter(unicode) {
   /**
    * Normalize a field value or query term for comparison.
    */
@@ -35,6 +51,8 @@ function viewFilter(unicode) {
    * Filter that matches annotations against a single field & term.
    *
    * eg. "quote:foo" or "text:bar"
+   *
+   * @implements {Filter}
    */
   class TermFilter {
     /**
@@ -67,11 +85,13 @@ function viewFilter(unicode) {
 
   /**
    * Filter that combines other filters using AND or OR combinators.
+   *
+   * @implements {Filter}
    */
   class BinaryOpFilter {
     /**
      * @param {'and'|'or'} op - Binary operator
-     * @param {Filter[]} - Array of filters to test against
+     * @param {Filter[]} filters - Array of filters to test against
      */
     constructor(op, filters) {
       this.operator = op;
@@ -95,24 +115,13 @@ function viewFilter(unicode) {
    *   autofalse: a function for a preliminary false match result
    *   value: a function to extract to facet value for the annotation.
    *   match: a function to check if the extracted value matches the facet value
+   *
+   * @type {Object.<string,Checker>}
    */
   const fieldMatchers = {
     quote: {
       autofalse: ann => (ann.references || []).length > 0,
-      value(annotation) {
-        if (!annotation.target) {
-          // FIXME: All annotations *must* have a target, so this check should
-          // not be required.
-          return '';
-        }
-        const target = annotation.target[0];
-        const selectors = target.selector || [];
-
-        return selectors
-          .filter(s => s.type === 'TextQuoteSelector')
-          .map(s => s.exact)
-          .join('\n');
-      },
+      value: ann => quote(ann) || '',
       match: (term, value) => value.indexOf(term) > -1,
     },
     since: {
@@ -183,9 +192,9 @@ function viewFilter(unicode) {
     const rootFilter = new BinaryOpFilter('and', fieldFilters);
 
     return annotations
-      .filter(ann => rootFilter.matches(ann))
+      .filter(ann => {
+        return ann.id && rootFilter.matches(ann);
+      })
       .map(ann => ann.id);
   };
 }
-
-module.exports = viewFilter;

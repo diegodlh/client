@@ -1,7 +1,13 @@
+@use '../../mixins/buttons';
+@use '../../mixins/layout';
+
 .search-status-bar {
+  @include layout.row($align: center);
   margin-bottom: 10px;
 }
 
-.search-status-bar > button {
+.search-status-bar__button {
+  @include buttons.button--primary;
+  padding-right: 0.75em;
   margin-right: 10px;
 }

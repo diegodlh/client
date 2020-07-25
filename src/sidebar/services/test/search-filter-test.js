@@ -1,6 +1,6 @@
-'use strict';
+import searchFilterFactory from '../search-filter';
 
-const searchFilter = require('../search-filter')();
+const searchFilter = searchFilterFactory();
 
 describe('sidebar.search-filter', () => {
   describe('#toObject', () => {
@@ -183,6 +183,24 @@ describe('sidebar.search-filter', () => {
         } else {
           assert.deepEqual(filter.since.terms, [expectedSecs]);
         }
+      });
+    });
+
+    it('filters to a focused user', () => {
+      const filter = searchFilter.generateFacetedFilter(null, {
+        user: 'fakeusername',
+      });
+      // Remove empty facets.
+      Object.keys(filter).forEach(k => {
+        if (filter[k].terms.length === 0) {
+          delete filter[k];
+        }
+      });
+      assert.deepEqual(filter, {
+        user: {
+          operator: 'or',
+          terms: ['fakeusername'],
+        },
       });
     });
   });

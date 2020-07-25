@@ -1,12 +1,10 @@
-'use strict';
-
-const { retryPromiseOperation } = require('../util/retry');
+import { retryPromiseOperation } from '../util/retry';
 
 /**
  * A service which fetches and caches API route metadata.
  */
 // @ngInject
-function apiRoutes(settings) {
+export default function apiRoutes(settings) {
   // Cache of route name => route metadata from API root.
   let routeCache;
   // Cache of links to pages on the service fetched from the API's "links"
@@ -14,12 +12,11 @@ function apiRoutes(settings) {
   let linkCache;
 
   function getJSON(url) {
-    const config = {
-      headers: {
-        'Hypothesis-Client-Version': '__VERSION__', // replaced by versionify
-      },
-    };
-    return fetch(url, config).then(response => {
+    // nb. The `/api/` and `/api/links` routes are fetched without specifying
+    // any additional headers/config so that we can use `<link rel="preload">` in
+    // the `/app.html` response to fetch them early, while the client JS app
+    // is loading.
+    return fetch(url).then(response => {
       if (response.status !== 200) {
         throw new Error(`Fetching ${url} failed`);
       }
@@ -60,5 +57,3 @@ function apiRoutes(settings) {
 
   return { routes, links };
 }
-
-module.exports = apiRoutes;

@@ -1,112 +1,63 @@
-'use strict';
+/* global process */
 
-const addAnalytics = require('./ga');
-const disableOpenerForExternalLinks = require('./util/disable-opener-for-external-links');
-const { fetchConfig } = require('./util/fetch-config');
-const serviceConfig = require('./service-config');
-const crossOriginRPC = require('./cross-origin-rpc.js');
+import { jsonConfigsFrom } from '../shared/settings';
+import * as rendererOptions from '../shared/renderer-options';
 
-let raven;
+import {
+  startServer as startRPCServer,
+  preStartServer as preStartRPCServer,
+} from './cross-origin-rpc.js';
+import addAnalytics from './ga';
+import disableOpenerForExternalLinks from './util/disable-opener-for-external-links';
+import { fetchConfig } from './util/fetch-config';
+import * as sentry from './util/sentry';
 
 // Read settings rendered into sidebar app HTML by service/extension.
-const appConfig = require('../shared/settings').jsonConfigsFrom(document);
+const appConfig = jsonConfigsFrom(document);
 
-if (appConfig.raven) {
-  // Initialize Raven. This is required at the top of this file
+if (appConfig.sentry) {
+  // Initialize Sentry. This is required at the top of this file
   // so that it happens early in the app's startup flow
-  raven = require('./raven');
-  raven.init(appConfig.raven);
+  sentry.init(appConfig.sentry);
 }
-
-// Disable Angular features that are not compatible with CSP.
-//
-// See https://docs.angularjs.org/api/ng/directive/ngCsp
-//
-// The `ng-csp` attribute must be set on some HTML element in the document
-// _before_ Angular is require'd for the first time.
-document.body.setAttribute('ng-csp', '');
 
 // Prevent tab-jacking.
 disableOpenerForExternalLinks(document.body);
 
-const angular = require('angular');
-
-// autofill-event relies on the existence of window.angular so
-// it must be require'd after angular is first require'd
-require('autofill-event');
-
 // Load polyfill for :focus-visible pseudo-class.
-require('focus-visible');
+import 'focus-visible';
 
 // Enable debugging checks for Preact.
-require('preact/debug');
-
-const wrapReactComponent = require('./util/wrap-react-component');
-
-// Setup Angular integration for Raven
-if (appConfig.raven) {
-  raven.angularModule(angular);
-} else {
-  angular.module('ngRaven', []);
+if (process.env.NODE_ENV !== 'production') {
+  require('preact/debug');
 }
 
 if (appConfig.googleAnalytics) {
   addAnalytics(appConfig.googleAnalytics);
 }
 
-// Fetch external state that the app needs before it can run. This includes the
-// user's profile and list of groups.
-const resolve = {
-  // @ngInject
-  state: function(groups, session) {
-    return Promise.all([groups.load(), session.load()]);
-  },
-};
-
 const isSidebar = !(
   window.location.pathname.startsWith('/stream') ||
   window.location.pathname.startsWith('/a/')
 );
 
-// @ngInject
-function configureLocation($locationProvider) {
-  // Use HTML5 history
-  return $locationProvider.html5Mode(true);
-}
-
-// @ngInject
-function configureRoutes($routeProvider) {
-  // The `vm.{auth,search}` properties used in these templates come from the
-  // `<hypothesis-app>` component which hosts the router's container element.
-  $routeProvider.when('/a/:id', {
-    template:
-      '<annotation-viewer-content search="vm.search"></annotation-viewer-content>',
-    reloadOnSearch: false,
-    resolve: resolve,
-  });
-  $routeProvider.when('/stream', {
-    template: '<stream-content search="vm.search"></stream-content>',
-    reloadOnSearch: false,
-    resolve: resolve,
-  });
-  $routeProvider.otherwise({
-    template:
-      '<sidebar-content auth="vm.auth" on-login="vm.login()"></sidebar-content>',
-    reloadOnSearch: false,
-    resolve: resolve,
-  });
-}
-
-// @ngInject
-function configureToastr(toastrConfig) {
-  angular.extend(toastrConfig, {
-    preventOpenDuplicates: true,
-  });
-}
+// Install Preact renderer options to work around IE11 quirks
+rendererOptions.setupIE11Fixes();
 
 // @ngInject
 function setupApi(api, streamer) {
   api.setClientId(streamer.clientId);
+}
+
+/**
+ * Perform the initial fetch of groups and user profile and then set the initial
+ * route to match the current URL.
+ */
+// @ngInject
+function setupRoute(groups, session, router) {
+  Promise.all([groups.load(), session.load()]).finally(() => {
+    router.sync();
+  });
 }
 
 /**
@@ -120,171 +71,143 @@ function sendPageView(analytics) {
   analytics.sendPageView();
 }
 
-function startAngularApp(config) {
-  angular
-    .module('h', [
-      // Angular addons which export the Angular module name
-      // via module.exports
-      require('angular-route'),
-      require('angular-toastr'),
-
-      // Angular addons which do not export the Angular module
-      // name via module.exports
-      ['ngTagsInput', require('ng-tags-input')][0],
-      ['ui.bootstrap', require('./vendor/ui-bootstrap-custom-tpls-0.13.4')][0],
-
-      // Local addons
-      'ngRaven',
-    ])
-
-    // The root component for the application
-    .component('hypothesisApp', require('./components/hypothesis-app'))
-
-    // UI components
-    .component('annotation', require('./components/annotation'))
-    .component('annotationHeader', require('./components/annotation-header'))
-    .component(
-      'annotationActionButton',
-      wrapReactComponent(require('./components/annotation-action-button'))
-    )
-    .component(
-      'annotationShareDialog',
-      require('./components/annotation-share-dialog')
-    )
-    .component('annotationThread', require('./components/annotation-thread'))
-    .component(
-      'annotationViewerContent',
-      require('./components/annotation-viewer-content')
-    )
-    .component('dropdownMenuBtn', require('./components/dropdown-menu-btn'))
-    .component('excerpt', require('./components/excerpt'))
-    .component('groupList', require('./components/group-list'))
-    .component(
-      'groupListV2',
-      wrapReactComponent(require('./components/group-list-v2'))
-    )
-    .component(
-      'helpLink',
-      wrapReactComponent(require('./components/help-link'))
-    )
-    .component('helpPanel', require('./components/help-panel'))
-    .component('loggedoutMessage', require('./components/loggedout-message'))
-    .component('loginControl', require('./components/login-control'))
-    .component('markdown', require('./components/markdown'))
-    .component('moderationBanner', require('./components/moderation-banner'))
-    .component('newNoteBtn', require('./components/new-note-btn'))
-    .component(
-      'publishAnnotationBtn',
-      require('./components/publish-annotation-btn')
-    )
-    .component('searchInput', require('./components/search-input'))
-    .component('searchStatusBar', require('./components/search-status-bar'))
-    .component('selectionTabs', require('./components/selection-tabs'))
-    .component('sidebarContent', require('./components/sidebar-content'))
-    .component(
-      'sidebarContentError',
-      wrapReactComponent(require('./components/sidebar-content-error'))
-    )
-    .component('sidebarTutorial', require('./components/sidebar-tutorial'))
-    .component('shareDialog', require('./components/share-dialog'))
-    .component(
-      'sortMenu',
-      wrapReactComponent(require('./components/sort-menu'))
-    )
-    .component('spinner', require('./components/spinner'))
-    .component('streamContent', require('./components/stream-content'))
-    .component('svgIcon', wrapReactComponent(require('./components/svg-icon')))
-    .component('tagEditor', require('./components/tag-editor'))
-    .component('threadList', require('./components/thread-list'))
-    .component(
-      'timestamp',
-      wrapReactComponent(require('./components/timestamp'))
-    )
-    .component('topBar', require('./components/top-bar'))
-    .component(
-      'userMenu',
-      wrapReactComponent(require('./components/user-menu'))
-    )
-
-    .directive('hAutofocus', require('./directive/h-autofocus'))
-    .directive('hBranding', require('./directive/h-branding'))
-    .directive('hOnTouch', require('./directive/h-on-touch'))
-    .directive('hTooltip', require('./directive/h-tooltip'))
-    .directive('windowScroll', require('./directive/window-scroll'))
-
-    .service('analytics', require('./services/analytics'))
-    .service('annotationMapper', require('./services/annotation-mapper'))
-    .service('api', require('./services/api'))
-    .service('apiRoutes', require('./services/api-routes'))
-    .service('auth', require('./services/oauth-auth'))
-    .service('bridge', require('../shared/bridge'))
-    .service('drafts', require('./services/drafts'))
-    .service('features', require('./services/features'))
-    .service('flash', require('./services/flash'))
-    .service('frameSync', require('./services/frame-sync').default)
-    .service('groups', require('./services/groups'))
-    .service('localStorage', require('./services/local-storage'))
-    .service('permissions', require('./services/permissions'))
-    .service('rootThread', require('./services/root-thread'))
-    .service('searchFilter', require('./services/search-filter'))
-    .service('serviceUrl', require('./services/service-url'))
-    .service('session', require('./services/session'))
-    .service('streamer', require('./services/streamer'))
-    .service('streamFilter', require('./services/stream-filter'))
-    .service('tags', require('./services/tags'))
-    .service('unicode', require('./services/unicode'))
-    .service('viewFilter', require('./services/view-filter'))
-
-    // Redux store
-    .service('store', require('./store'))
-
-    // Utilities
-    .value('Discovery', require('../shared/discovery'))
-    .value('ExcerptOverflowMonitor', require('./util/excerpt-overflow-monitor'))
-    .value('OAuthClient', require('./util/oauth-client'))
-    .value('VirtualThreadList', require('./virtual-thread-list'))
-    .value('isSidebar', isSidebar)
-    .value('random', require('./util/random'))
-    .value('raven', require('./raven'))
-    .value('serviceConfig', serviceConfig)
-    .value('settings', config)
-    .value('time', require('./util/time'))
-    .value('urlEncodeFilter', require('./filter/url').encode)
-
-    .config(configureLocation)
-    .config(configureRoutes)
-    .config(configureToastr)
-
-    .run(sendPageView)
-    .run(setupApi)
-    .run(crossOriginRPC.server.start);
-
-  if (config.liveReloadServer) {
-    require('./live-reload-client').connect(config.liveReloadServer);
-  }
-
-  // Work around a check in Angular's $sniffer service that causes it to
-  // incorrectly determine that Firefox extensions are Chrome Packaged Apps which
-  // do not support the HTML 5 History API. This results Angular redirecting the
-  // browser on startup and thus the app fails to load.
-  // See https://github.com/angular/angular.js/blob/a03b75c6a812fcc2f616fc05c0f1710e03fca8e9/src/ng/sniffer.js#L30
-  if (window.chrome && !window.chrome.app) {
-    window.chrome.app = {
-      dummyAddedByHypothesisClient: true,
-    };
-  }
-
-  const appEl = document.querySelector('hypothesis-app');
-  angular.bootstrap(appEl, ['h'], { strictDi: true });
+/**
+ * Fetch any persisted client-side defaults, and persist any app-state changes to
+ * those defaults
+ */
+// @ngInject
+function persistDefaults(persistedDefaults) {
+  persistedDefaults.init();
 }
+
+/**
+ * Set up autosave-new-highlights service
+ */
+// @ngInject
+function autosave(autosaveService) {
+  autosaveService.init();
+}
+
+// @ngInject
+function setupFrameSync(frameSync) {
+  if (isSidebar) {
+    frameSync.connect();
+  }
+}
+
+// Register icons used by the sidebar app (and maybe other assets in future).
+import { registerIcons } from '../shared/components/svg-icon';
+import iconSet from './icons';
+registerIcons(iconSet);
+
+// The entry point component for the app.
+import { createElement, render } from 'preact';
+import HypothesisApp from './components/hypothesis-app';
+import { ServiceContext } from './util/service-context';
+
+// Services.
+import bridgeService from '../shared/bridge';
+
+import analyticsService from './services/analytics';
+import annotationsService from './services/annotations';
+import apiService from './services/api';
+import apiRoutesService from './services/api-routes';
+import authService from './services/oauth-auth';
+import autosaveService from './services/autosave';
+import featuresService from './services/features';
+import frameSyncService from './services/frame-sync';
+import groupsService from './services/groups';
+import loadAnnotationsService from './services/load-annotations';
+import localStorageService from './services/local-storage';
+import persistedDefaultsService from './services/persisted-defaults';
+import rootThreadService from './services/root-thread';
+import routerService from './services/router';
+import searchFilterService from './services/search-filter';
+import serviceUrlService from './services/service-url';
+import sessionService from './services/session';
+import streamFilterService from './services/stream-filter';
+import streamerService from './services/streamer';
+import tagsService from './services/tags';
+import threadsService from './services/threads';
+import toastMessenger from './services/toast-messenger';
+import unicodeService from './services/unicode';
+import viewFilterService from './services/view-filter';
+
+// Redux store.
+import store from './store';
+
+// Utilities.
+import { Injector } from '../shared/injector';
+
+function startApp(config) {
+  const container = new Injector();
+
+  // Register services.
+  container
+    .register('analytics', analyticsService)
+    .register('annotationsService', annotationsService)
+    .register('api', apiService)
+    .register('apiRoutes', apiRoutesService)
+    .register('auth', authService)
+    .register('autosaveService', autosaveService)
+    .register('bridge', bridgeService)
+    .register('features', featuresService)
+    .register('frameSync', frameSyncService)
+    .register('groups', groupsService)
+    .register('loadAnnotationsService', loadAnnotationsService)
+    .register('localStorage', localStorageService)
+    .register('persistedDefaults', persistedDefaultsService)
+    .register('rootThread', rootThreadService)
+    .register('router', routerService)
+    .register('searchFilter', searchFilterService)
+    .register('serviceUrl', serviceUrlService)
+    .register('session', sessionService)
+    .register('streamer', streamerService)
+    .register('streamFilter', streamFilterService)
+    .register('tags', tagsService)
+    .register('threadsService', threadsService)
+    .register('toastMessenger', toastMessenger)
+    .register('unicode', unicodeService)
+    .register('viewFilter', viewFilterService)
+    .register('store', store);
+
+  // Register utility values/classes.
+  //
+  // nb. In many cases these can be replaced by direct imports in the services
+  // that use them, since they don't depend on instances of other services.
+  container
+    .register('$window', { value: window })
+    .register('isSidebar', { value: isSidebar })
+    .register('settings', { value: config });
+
+  // Initialize services.
+  container.run(persistDefaults);
+  container.run(autosave);
+  container.run(sendPageView);
+  container.run(setupApi);
+  container.run(setupRoute);
+  container.run(startRPCServer);
+  container.run(setupFrameSync);
+
+  // Render the UI.
+  const appEl = document.querySelector('hypothesis-app');
+  render(
+    <ServiceContext.Provider value={container}>
+      <HypothesisApp />
+    </ServiceContext.Provider>,
+    appEl
+  );
+}
+
+// Start capturing RPC requests before we start the RPC server (startRPCServer)
+preStartRPCServer();
 
 fetchConfig(appConfig)
   .then(config => {
-    startAngularApp(config);
+    startApp(config);
   })
   .catch(err => {
     // Report error. This will be the only notice that the user gets because the
-    // sidebar does not currently appear at all if the Angular app fails to
-    // start.
+    // sidebar does not currently appear at all if the app fails to start.
     console.error('Failed to start Hypothesis client: ', err);
   });

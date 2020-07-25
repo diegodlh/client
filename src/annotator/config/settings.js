@@ -1,10 +1,9 @@
-'use strict';
+import * as sharedSettings from '../../shared/settings';
 
-const configFuncSettingsFrom = require('./config-func-settings-from');
-const isBrowserExtension = require('./is-browser-extension');
-const sharedSettings = require('../../shared/settings');
+import configFuncSettingsFrom from './config-func-settings-from';
+import isBrowserExtension from './is-browser-extension';
 
-function settingsFrom(window_) {
+export default function settingsFrom(window_) {
   const jsonConfigs = sharedSettings.jsonConfigsFrom(window_.document);
   const configFuncSettings = configFuncSettingsFrom(window_);
 
@@ -174,17 +173,20 @@ function settingsFrom(window_) {
   function hostPageSetting(name, options = {}) {
     const allowInBrowserExt = options.allowInBrowserExt || false;
     const hasDefaultValue = typeof options.defaultValue !== 'undefined';
+    // Optional coerce method, or a no-op.
+    const coerceValue =
+      typeof options.coerce === 'function' ? options.coerce : name => name;
 
     if (!allowInBrowserExt && isBrowserExtension(sidebarAppUrl())) {
       return hasDefaultValue ? options.defaultValue : null;
     }
 
     if (configFuncSettings.hasOwnProperty(name)) {
-      return configFuncSettings[name];
+      return coerceValue(configFuncSettings[name]);
     }
 
     if (jsonConfigs.hasOwnProperty(name)) {
-      return jsonConfigs[name];
+      return coerceValue(jsonConfigs[name]);
     }
 
     if (hasDefaultValue) {
@@ -216,5 +218,3 @@ function settingsFrom(window_) {
     hostPageSetting: hostPageSetting,
   };
 }
-
-module.exports = settingsFrom;

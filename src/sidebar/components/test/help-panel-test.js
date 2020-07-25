@@ -1,45 +1,211 @@
-'use strict';
+import { mount } from 'enzyme';
+import { createElement } from 'preact';
+import { act } from 'preact/test-utils';
 
-const angular = require('angular');
+import HelpPanel from '../help-panel';
+import { $imports } from '../help-panel';
 
-describe('helpPanel', function() {
+import { checkAccessibility } from '../../../test-util/accessibility';
+import mockImportedComponents from '../../../test-util/mock-imported-components';
+
+describe('HelpPanel', function () {
+  let fakeAuth;
+  let fakeSessionService;
   let fakeStore;
-  let $componentController;
-  let $rootScope;
+  let fakeVersionData;
+  let fakeVersionDataObject;
 
-  beforeEach(function() {
+  function createComponent(props) {
+    return mount(
+      <HelpPanel auth={fakeAuth} session={fakeSessionService} {...props} />
+    );
+  }
+
+  beforeEach(() => {
+    fakeAuth = {};
+    fakeSessionService = { dismissSidebarTutorial: sinon.stub() };
     fakeStore = {
-      frames: sinon.stub().returns([]),
+      mainFrame: sinon.stub().returns(null),
+      profile: sinon.stub().returns({
+        preferences: { show_sidebar_tutorial: true },
+      }),
     };
+    fakeVersionDataObject = {
+      asEncodedURLString: sinon.stub().returns('fakeURLString'),
+    };
+    fakeVersionData = sinon.stub().returns(fakeVersionDataObject);
 
-    angular.module('h', []).component('helpPanel', require('../help-panel'));
-
-    angular.mock.module('h', {
-      store: fakeStore,
-      serviceUrl: sinon.stub(),
-    });
-
-    angular.mock.inject(function(_$componentController_, _$rootScope_) {
-      $componentController = _$componentController_;
-      $rootScope = _$rootScope_;
+    $imports.$mock(mockImportedComponents());
+    $imports.$mock({
+      '../store/use-store': callback => callback(fakeStore),
+      '../util/version-data': fakeVersionData,
     });
   });
 
-  it('displays the URL and fingerprint of the first connected frame', function() {
-    fakeStore.frames.returns([
-      {
-        uri: 'https://publisher.org/article.pdf',
-        metadata: {
-          documentFingerprint: '12345',
-        },
-      },
-    ]);
-
-    const $scope = $rootScope.$new();
-    const ctrl = $componentController('helpPanel', { $scope: $scope });
-    $scope.$digest();
-
-    assert.equal(ctrl.url, 'https://publisher.org/article.pdf');
-    assert.equal(ctrl.documentFingerprint, '12345');
+  afterEach(() => {
+    $imports.$restore();
   });
+
+  context('when viewing tutorial sub-panel', () => {
+    it('should show tutorial by default', () => {
+      const wrapper = createComponent();
+      const subHeader = wrapper.find('.help-panel__sub-panel-title');
+
+      assert.equal(subHeader.text(), 'Getting started');
+      assert.isTrue(wrapper.find('Tutorial').exists());
+      assert.isFalse(wrapper.find('VersionInfo').exists());
+    });
+
+    it('should show navigation link to versionInfo sub-panel', () => {
+      const wrapper = createComponent();
+      const link = wrapper.find('.help-panel__sub-panel-navigation-button');
+
+      assert.equal(link.text(), 'About this version');
+    });
+
+    it('should switch to versionInfo sub-panel when footer link clicked', () => {
+      const wrapper = createComponent();
+      wrapper
+        .find('.help-panel__sub-panel-navigation-button')
+        .simulate('click');
+
+      assert.equal(
+        wrapper.find('.help-panel__sub-panel-title').text(),
+        'About this version'
+      );
+      assert.isTrue(wrapper.find('VersionInfo').exists());
+      assert.equal(
+        wrapper.find('VersionInfo').prop('versionData'),
+        fakeVersionDataObject
+      );
+      assert.isFalse(wrapper.find('Tutorial').exists());
+    });
+  });
+
+  context('when viewing versionInfo sub-panel', () => {
+    it('should show navigation link back to tutorial sub-panel', () => {
+      const wrapper = createComponent();
+      wrapper
+        .find('.help-panel__sub-panel-navigation-button')
+        .simulate('click');
+
+      const link = wrapper.find('.help-panel__sub-panel-navigation-button');
+
+      assert.isTrue(wrapper.find('VersionInfo').exists());
+      assert.isFalse(wrapper.find('Tutorial').exists());
+      assert.equal(link.text(), 'Getting started');
+    });
+
+    it('should switch to tutorial sub-panel when link clicked', () => {
+      const wrapper = createComponent();
+
+      // Click to get to version-info sub-panel...
+      wrapper
+        .find('.help-panel__sub-panel-navigation-button')
+        .simulate('click');
+
+      const link = wrapper.find('.help-panel__sub-panel-navigation-button');
+      // Click again to get back to tutorial sub-panel
+      link.simulate('click');
+
+      assert.isFalse(wrapper.find('VersionInfo').exists());
+      assert.isTrue(wrapper.find('Tutorial').exists());
+    });
+  });
+
+  describe('`HelpPanelTab`s', () => {
+    it('should render static link to knowledge base', () => {
+      const wrapper = createComponent();
+
+      assert.isTrue(
+        wrapper
+          .find('HelpPanelTab')
+          .filter({ linkText: 'Help topics' })
+          .exists()
+      );
+    });
+
+    it('should render dynamic link to create a new help ticket', () => {
+      const wrapper = createComponent();
+      const helpTab = wrapper
+        .find('HelpPanelTab')
+        .filter({ linkText: 'New support ticket' });
+      assert.isTrue(helpTab.exists());
+      assert.include(helpTab.prop('url'), 'fakeURLString');
+    });
+  });
+
+  context('dismissing the tutorial and clearing profile setting', () => {
+    context('profile preference to auto-show tutorial is truthy', () => {
+      beforeEach(() => {
+        fakeStore.profile.returns({
+          preferences: { show_sidebar_tutorial: true },
+        });
+      });
+
+      it('should not dismiss the panel when it is initially opened', () => {
+        const wrapper = createComponent();
+        const onActiveChanged = wrapper
+          .find('SidebarPanel')
+          .prop('onActiveChanged');
+
+        act(() => {
+          // "Activate" the panel (simulate the `SidebarPanel` communicating
+          // an active state via callback prop)
+          onActiveChanged(true);
+        });
+
+        assert.notOk(fakeSessionService.dismissSidebarTutorial.callCount);
+      });
+
+      it('should invoke dismiss service method when panel is first closed', () => {
+        const wrapper = createComponent();
+        const onActiveChanged = wrapper
+          .find('SidebarPanel')
+          .prop('onActiveChanged');
+
+        act(() => {
+          // "Activate" the panel (simulate the `SidebarPanel` communicating
+          // an active state via callback prop)
+          onActiveChanged(true);
+          // Now "close" the panel
+          onActiveChanged(false);
+        });
+
+        assert.calledOnce(fakeSessionService.dismissSidebarTutorial);
+      });
+    });
+
+    context('profile preference to auto-show tutorial is falsy', () => {
+      beforeEach(() => {
+        fakeStore.profile.returns({
+          preferences: { show_sidebar_tutorial: false },
+        });
+      });
+
+      it('should not invoke dismiss service method when panel is closed', () => {
+        const wrapper = createComponent();
+        const onActiveChanged = wrapper
+          .find('SidebarPanel')
+          .prop('onActiveChanged');
+
+        act(() => {
+          // "Activate" the panel (simulate the `SidebarPanel` communicating
+          // an active state via callback prop)
+          onActiveChanged(true);
+          // Now "close" the panel
+          onActiveChanged(false);
+        });
+
+        assert.notOk(fakeSessionService.dismissSidebarTutorial.callCount);
+      });
+    });
+  });
+
+  it(
+    'should pass a11y checks',
+    checkAccessibility({
+      content: () => createComponent(),
+    })
+  );
 });

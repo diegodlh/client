@@ -1,4 +1,3 @@
-'use strict';
+import * as wgxpath from 'wicked-good-xpath';
 
-const wgxpath = require('wicked-good-xpath');
 wgxpath.install();

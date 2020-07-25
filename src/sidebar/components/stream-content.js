@@ -1,85 +1,103 @@
-'use strict';
+import { createElement } from 'preact';
+import { useCallback, useEffect } from 'preact/hooks';
+import propTypes from 'prop-types';
 
-// @ngInject
-function StreamContentController(
-  $scope,
-  $location,
-  $route,
-  $routeParams,
-  annotationMapper,
-  store,
+import { withServices } from '../util/service-context';
+import useStore from '../store/use-store';
+
+import ThreadList from './thread-list';
+
+/**
+ * The main content of the "stream" route (https://hypothes.is/stream)
+ */
+function StreamContent({
   api,
-  rootThread,
-  searchFilter
-) {
-  const self = this;
-
-  store.setAppIsSidebar(false);
-
-  /** `offset` parameter for the next search API call. */
-  let offset = 0;
-
-  /** Load annotations fetched from the API into the app. */
-  const load = function(result) {
-    offset += result.rows.length;
-    annotationMapper.loadAnnotations(result.rows, result.replies);
-  };
+  rootThread: rootThreadService,
+  searchFilter,
+  toastMessenger,
+}) {
+  const addAnnotations = useStore(store => store.addAnnotations);
+  const annotationFetchStarted = useStore(
+    store => store.annotationFetchStarted
+  );
+  const annotationFetchFinished = useStore(
+    store => store.annotationFetchFinished
+  );
+  const clearAnnotations = useStore(store => store.clearAnnotations);
+  const currentQuery = useStore(store => store.routeParams().q);
+  const setSortKey = useStore(store => store.setSortKey);
 
   /**
-   * Fetch the next `limit` annotations starting from `offset` from the API.
+   * Fetch annotations from the API and display them in the stream.
+   *
+   * @param {string} query - The user-supplied search query
    */
-  const fetch = function(limit) {
-    const query = Object.assign(
-      {
+  const loadAnnotations = useCallback(
+    async query => {
+      const queryParams = {
         _separate_replies: true,
-        offset: offset,
-        limit: limit,
-      },
-      searchFilter.toObject($routeParams.q)
-    );
 
-    api
-      .search(query)
-      .then(load)
-      .catch(function(err) {
-        console.error(err);
-      });
-  };
+        // nb. There is currently no way to load anything except the first
+        // 20 matching annotations in the UI.
+        offset: 0,
+        limit: 20,
 
-  // Re-do search when query changes
-  const lastQuery = $routeParams.q;
-  $scope.$on('$routeUpdate', function() {
-    if ($routeParams.q !== lastQuery) {
-      store.clearAnnotations();
-      $route.reload();
-    }
-  });
+        ...searchFilter.toObject(query),
+      };
+      try {
+        annotationFetchStarted();
+        const results = await api.search(queryParams);
+        addAnnotations([...results.rows, ...results.replies]);
+      } finally {
+        annotationFetchFinished();
+      }
+    },
+    [
+      addAnnotations,
+      annotationFetchStarted,
+      annotationFetchFinished,
+      api,
+      searchFilter,
+    ]
+  );
 
-  // Perform the initial search
-  fetch(20);
+  // Update the stream when this route is initially displayed and whenever
+  // the search query is updated.
+  useEffect(() => {
+    // Sort the stream so that the newest annotations are at the top
+    setSortKey('Newest');
+    clearAnnotations();
+    loadAnnotations(currentQuery).catch(err => {
+      toastMessenger.error(`Unable to fetch annotations: ${err.message}`);
+    });
+  }, [
+    clearAnnotations,
+    currentQuery,
+    loadAnnotations,
+    setSortKey,
+    toastMessenger,
+  ]);
 
-  this.setCollapsed = store.setCollapsed;
+  const rootThread = useStore(store =>
+    rootThreadService.thread(store.getState())
+  );
 
-  store.subscribe(function() {
-    self.rootThread = rootThread.thread(store.getState());
-  });
-
-  // Sort the stream so that the newest annotations are at the top
-  store.setSortKey('Newest');
-
-  this.loadMore = fetch;
-
-  this.$onInit = () => {
-    this.search.query = () => $routeParams.q || '';
-    this.search.update = q => $location.search({ q });
-  };
+  return <ThreadList thread={rootThread} />;
 }
 
-module.exports = {
-  controller: StreamContentController,
-  controllerAs: 'vm',
-  bindings: {
-    search: '<',
-  },
-  template: require('../templates/stream-content.html'),
+StreamContent.propTypes = {
+  // Injected services.
+  api: propTypes.object,
+  rootThread: propTypes.object,
+  searchFilter: propTypes.object,
+  toastMessenger: propTypes.object,
 };
+
+StreamContent.injectedProps = [
+  'api',
+  'rootThread',
+  'searchFilter',
+  'toastMessenger',
+];
+
+export default withServices(StreamContent);

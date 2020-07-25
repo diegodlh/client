@@ -1,9 +1,8 @@
-'use strict';
+import Chance from 'chance';
 
-const Chance = require('chance');
 const chance = new Chance();
 
-function group() {
+export function group() {
   const id = chance.hash({ length: 15 });
   const name = chance.string();
   const group = {
@@ -17,7 +16,7 @@ function group() {
   return group;
 }
 
-function organization(options = {}) {
+export function organization(options = {}) {
   const org = {
     id: chance.hash({ length: 15 }),
     name: chance.string(),
@@ -26,7 +25,7 @@ function organization(options = {}) {
   return Object.assign(org, options);
 }
 
-function defaultOrganization() {
+export function defaultOrganization() {
   return {
     id: '__default__',
     name: 'Hypothesis',
@@ -34,16 +33,9 @@ function defaultOrganization() {
   };
 }
 
-function expandedGroup(options = {}) {
+export function expandedGroup(options = {}) {
   const expanded = group();
   expanded.organization = organization();
 
   return Object.assign(expanded, options);
 }
-
-module.exports = {
-  group,
-  expandedGroup,
-  organization,
-  defaultOrganization,
-};

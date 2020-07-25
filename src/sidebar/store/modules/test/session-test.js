@@ -1,18 +1,18 @@
-'use strict';
+import createStore from '../../create-store';
+import session from '../session';
 
-const session = require('../session');
+describe('sidebar/store/modules/session', function () {
+  let store;
 
-const util = require('../../util');
+  beforeEach(() => {
+    store = createStore([session]);
+  });
 
-const { init, actions, selectors } = session;
-const update = util.createReducer(session.update);
-
-describe('sidebar.reducers.session', function() {
-  describe('#updateSession', function() {
-    it('updates the session state', function() {
-      const newSession = Object.assign(init(), { userid: 'john' });
-      const state = update(init(), actions.updateSession(newSession));
-      assert.deepEqual(state.session, newSession);
+  describe('#updateProfile', function () {
+    it('updates the profile data', function () {
+      const newProfile = Object.assign({ userid: 'john' });
+      store.updateProfile({ userid: 'john' });
+      assert.deepEqual(store.profile(), newProfile);
     });
   });
 
@@ -22,18 +22,50 @@ describe('sidebar.reducers.session', function() {
       { userid: null, expectedIsLoggedIn: false },
     ].forEach(({ userid, expectedIsLoggedIn }) => {
       it('returns whether the user is logged in', () => {
-        const newSession = Object.assign(init(), { userid: userid });
-        const state = update(init(), actions.updateSession(newSession));
-        assert.equal(selectors.isLoggedIn(state), expectedIsLoggedIn);
+        store.updateProfile({ userid: userid });
+        assert.equal(store.isLoggedIn(), expectedIsLoggedIn);
       });
+    });
+  });
+
+  describe('#isFeatureEnabled', () => {
+    it('returns false before features have been fetched', () => {
+      assert.isFalse(store.isFeatureEnabled('some_feature'));
+    });
+
+    it('returns false if feature is unknown', () => {
+      store.updateProfile({ userid: null, features: {} });
+      assert.isFalse(store.isFeatureEnabled('some_feature'));
+    });
+
+    [true, false].forEach(enabled => {
+      it('returns feature flag state if profile is fetched and feature exists', () => {
+        store.updateProfile({
+          userid: null,
+          features: { some_feature: enabled },
+        });
+        assert.equal(store.isFeatureEnabled('some_feature'), enabled);
+      });
+    });
+  });
+
+  describe('#hasFetchedProfile', () => {
+    it('returns false before profile is updated', () => {
+      assert.isFalse(store.hasFetchedProfile());
+    });
+
+    it('returns true after profile is updated', () => {
+      store.updateProfile({ userid: 'john' });
+      assert.isTrue(store.hasFetchedProfile());
     });
   });
 
   describe('#profile', () => {
     it("returns the user's profile", () => {
-      const newSession = Object.assign(init(), { userid: 'john' });
-      const state = update(init(), actions.updateSession(newSession));
-      assert.equal(selectors.profile(state), newSession);
+      store.updateProfile({ userid: 'john' });
+      assert.deepEqual(store.profile(), {
+        userid: 'john',
+      });
     });
   });
 });

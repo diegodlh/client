@@ -1,11 +1,9 @@
-'use strict';
+import { DEBOUNCE_WAIT } from '../../frame-observer';
+import CrossFrame from '../../plugin/cross-frame';
+import { $imports } from '../../plugin/cross-frame';
+import { isLoaded } from '../../util/frame-util';
 
-const isLoaded = require('../../util/frame-util').isLoaded;
-
-const FRAME_DEBOUNCE_WAIT = require('../../frame-observer').DEBOUNCE_WAIT + 10;
-const CrossFrame = require('../../plugin/cross-frame');
-
-describe('CrossFrame multi-frame scenario', function() {
+describe('CrossFrame multi-frame scenario', function () {
   let fakeAnnotationSync;
   let fakeBridge;
   let proxyAnnotationSync;
@@ -14,13 +12,14 @@ describe('CrossFrame multi-frame scenario', function() {
   let crossFrame;
   let options;
 
-  const sandbox = sinon.sandbox.create();
+  const sandbox = sinon.createSandbox();
 
-  const waitForFrameObserver = function(cb) {
-    return setTimeout(cb, FRAME_DEBOUNCE_WAIT);
+  const waitForFrameObserver = function (cb) {
+    const wait = DEBOUNCE_WAIT + 10;
+    return setTimeout(cb, wait);
   };
 
-  beforeEach(function() {
+  beforeEach(function () {
     fakeBridge = {
       createChannel: sandbox.stub(),
       call: sandbox.stub(),
@@ -30,7 +29,7 @@ describe('CrossFrame multi-frame scenario', function() {
     proxyAnnotationSync = sandbox.stub().returns(fakeAnnotationSync);
     proxyBridge = sandbox.stub().returns(fakeBridge);
 
-    CrossFrame.$imports.$mock({
+    $imports.$mock({
       '../annotation-sync': proxyAnnotationSync,
       '../../shared/bridge': proxyBridge,
     });
@@ -49,15 +48,15 @@ describe('CrossFrame multi-frame scenario', function() {
     crossFrame = new CrossFrame(container, options);
   });
 
-  afterEach(function() {
+  afterEach(function () {
     sandbox.restore();
     crossFrame.destroy();
     container.parentNode.removeChild(container);
 
-    CrossFrame.$imports.$restore();
+    $imports.$restore();
   });
 
-  it('detects frames on page', function() {
+  it('detects frames on page', function () {
     // Create a frame before initializing
     const validFrame = document.createElement('iframe');
     validFrame.setAttribute('enable-annotation', '');
@@ -72,8 +71,8 @@ describe('CrossFrame multi-frame scenario', function() {
     // Now initialize
     crossFrame.pluginInit();
 
-    const validFramePromise = new Promise(function(resolve) {
-      isLoaded(validFrame, function() {
+    const validFramePromise = new Promise(function (resolve) {
+      isLoaded(validFrame, function () {
         assert(
           validFrame.contentDocument.body.hasChildNodes(),
           'expected valid frame to be modified'
@@ -81,8 +80,8 @@ describe('CrossFrame multi-frame scenario', function() {
         resolve();
       });
     });
-    const invalidFramePromise = new Promise(function(resolve) {
-      isLoaded(invalidFrame, function() {
+    const invalidFramePromise = new Promise(function (resolve) {
+      isLoaded(invalidFrame, function () {
         assert(
           !invalidFrame.contentDocument.body.hasChildNodes(),
           'expected invalid frame to not be modified'
@@ -94,7 +93,7 @@ describe('CrossFrame multi-frame scenario', function() {
     return Promise.all([validFramePromise, invalidFramePromise]);
   });
 
-  it('detects removed frames', function() {
+  it('detects removed frames', function () {
     // Create a frame before initializing
     const frame = document.createElement('iframe');
     frame.setAttribute('enable-annotation', '');
@@ -109,15 +108,15 @@ describe('CrossFrame multi-frame scenario', function() {
     assert.calledWith(fakeBridge.call, 'destroyFrame');
   });
 
-  it('injects embed script in frame', function() {
+  it('injects embed script in frame', function () {
     const frame = document.createElement('iframe');
     frame.setAttribute('enable-annotation', '');
     container.appendChild(frame);
 
     crossFrame.pluginInit();
 
-    return new Promise(function(resolve) {
-      isLoaded(frame, function() {
+    return new Promise(function (resolve) {
+      isLoaded(frame, function () {
         const scriptElement = frame.contentDocument.querySelector(
           'script[src]'
         );
@@ -132,7 +131,7 @@ describe('CrossFrame multi-frame scenario', function() {
     });
   });
 
-  it('excludes injection from already injected frames', function() {
+  it('excludes injection from already injected frames', function () {
     const frame = document.createElement('iframe');
     frame.setAttribute('enable-annotation', '');
     container.appendChild(frame);
@@ -140,8 +139,8 @@ describe('CrossFrame multi-frame scenario', function() {
 
     crossFrame.pluginInit();
 
-    return new Promise(function(resolve) {
-      isLoaded(frame, function() {
+    return new Promise(function (resolve) {
+      isLoaded(frame, function () {
         const scriptElement = frame.contentDocument.querySelector(
           'script[src]'
         );
@@ -154,7 +153,7 @@ describe('CrossFrame multi-frame scenario', function() {
     });
   });
 
-  it('detects dynamically added frames', function() {
+  it('detects dynamically added frames', function () {
     // Initialize with no initial frame, unlike before
     crossFrame.pluginInit();
 
@@ -163,10 +162,10 @@ describe('CrossFrame multi-frame scenario', function() {
     frame.setAttribute('enable-annotation', '');
     container.appendChild(frame);
 
-    return new Promise(function(resolve) {
+    return new Promise(function (resolve) {
       // Yield to let the DOM and CrossFrame catch up
-      waitForFrameObserver(function() {
-        isLoaded(frame, function() {
+      waitForFrameObserver(function () {
+        isLoaded(frame, function () {
           assert(
             frame.contentDocument.body.hasChildNodes(),
             'expected dynamically added frame to be modified'
@@ -177,7 +176,7 @@ describe('CrossFrame multi-frame scenario', function() {
     });
   });
 
-  it('detects dynamically removed frames', function() {
+  it('detects dynamically removed frames', function () {
     // Create a frame before initializing
     const frame = document.createElement('iframe');
     frame.setAttribute('enable-annotation', '');
@@ -186,13 +185,13 @@ describe('CrossFrame multi-frame scenario', function() {
     // Now initialize
     crossFrame.pluginInit();
 
-    return new Promise(function(resolve) {
+    return new Promise(function (resolve) {
       // Yield to let the DOM and CrossFrame catch up
-      waitForFrameObserver(function() {
+      waitForFrameObserver(function () {
         frame.remove();
 
         // Yield again
-        waitForFrameObserver(function() {
+        waitForFrameObserver(function () {
           assert.calledWith(fakeBridge.call, 'destroyFrame');
           resolve();
         });
@@ -200,7 +199,7 @@ describe('CrossFrame multi-frame scenario', function() {
     });
   });
 
-  it('detects a frame dynamically removed, and added again', function() {
+  it('detects a frame dynamically removed, and added again', function () {
     // Create a frame before initializing
     const frame = document.createElement('iframe');
     frame.setAttribute('enable-annotation', '');
@@ -209,8 +208,8 @@ describe('CrossFrame multi-frame scenario', function() {
     // Now initialize
     crossFrame.pluginInit();
 
-    return new Promise(function(resolve) {
-      isLoaded(frame, function() {
+    return new Promise(function (resolve) {
+      isLoaded(frame, function () {
         assert(
           frame.contentDocument.body.hasChildNodes(),
           'expected initial frame to be modified'
@@ -219,13 +218,13 @@ describe('CrossFrame multi-frame scenario', function() {
         frame.remove();
 
         // Yield to let the DOM and CrossFrame catch up
-        waitForFrameObserver(function() {
+        waitForFrameObserver(function () {
           // Add the frame again
           container.appendChild(frame);
 
           // Yield again
-          waitForFrameObserver(function() {
-            isLoaded(frame, function() {
+          waitForFrameObserver(function () {
+            isLoaded(frame, function () {
               assert(
                 frame.contentDocument.body.hasChildNodes(),
                 'expected dynamically added frame to be modified'
@@ -238,7 +237,7 @@ describe('CrossFrame multi-frame scenario', function() {
     });
   });
 
-  it('detects a frame dynamically added, removed, and added again', function() {
+  it('detects a frame dynamically added, removed, and added again', function () {
     // Initialize with no initial frame
     crossFrame.pluginInit();
 
@@ -247,10 +246,10 @@ describe('CrossFrame multi-frame scenario', function() {
     frame.setAttribute('enable-annotation', '');
     container.appendChild(frame);
 
-    return new Promise(function(resolve) {
+    return new Promise(function (resolve) {
       // Yield to let the DOM and CrossFrame catch up
-      waitForFrameObserver(function() {
-        isLoaded(frame, function() {
+      waitForFrameObserver(function () {
+        isLoaded(frame, function () {
           assert(
             frame.contentDocument.body.hasChildNodes(),
             'expected dynamically added frame to be modified'
@@ -259,13 +258,13 @@ describe('CrossFrame multi-frame scenario', function() {
           frame.remove();
 
           // Yield again
-          waitForFrameObserver(function() {
+          waitForFrameObserver(function () {
             // Add the frame again
             container.appendChild(frame);
 
             // Yield
-            waitForFrameObserver(function() {
-              isLoaded(frame, function() {
+            waitForFrameObserver(function () {
+              isLoaded(frame, function () {
                 assert(
                   frame.contentDocument.body.hasChildNodes(),
                   'expected dynamically added frame to be modified'

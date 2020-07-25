@@ -1,8 +1,6 @@
-'use strict';
+import * as queryString from 'query-string';
 
-const queryString = require('query-string');
-
-const random = require('./random');
+import * as random from './random';
 
 /**
  * An object holding the details of an access token from the tokenUrl endpoint.
@@ -59,7 +57,7 @@ function generateState() {
  * OAuthClient handles interaction with the annotation service's OAuth
  * endpoints.
  */
-class OAuthClient {
+export default class OAuthClient {
   /**
    * Create a new OAuthClient
    *
@@ -158,43 +156,81 @@ class OAuthClient {
     // Random state string used to check that auth messages came from the popup
     // window that we opened.
     const state = this.generateState();
+    let authResponse;
 
-    // Promise which resolves or rejects when the user accepts or closes the
-    // auth popup.
-    const authResponse = new Promise((resolve, reject) => {
-      function authRespListener(event) {
-        if (typeof event.data !== 'object') {
-          return;
-        }
+    if (authWindow) {
+      // appType != firefox-extension
 
-        if (event.data.state !== state) {
-          // This message came from a different popup window.
-          return;
-        }
+      // Promise which resolves or rejects when the user accepts or closes the
+      // auth popup.
+      authResponse = new Promise((resolve, reject) => {
+        function authRespListener(event) {
+          if (typeof event.data !== 'object') {
+            return;
+          }
 
-        if (event.data.type === 'authorization_response') {
-          resolve(event.data);
-        }
-        if (event.data.type === 'authorization_canceled') {
-          reject(new Error('Authorization window was closed'));
-        }
-        $window.removeEventListener('message', authRespListener);
-      }
-      $window.addEventListener('message', authRespListener);
-    });
+          if (event.data.state !== state) {
+            // This message came from a different popup window.
+            return;
+          }
 
-    // Authorize user and retrieve grant token
-    let authUrl = this.authorizationEndpoint;
-    authUrl +=
-      '?' +
-      queryString.stringify({
-        client_id: this.clientId,
-        origin: $window.location.origin,
-        response_mode: 'web_message',
-        response_type: 'code',
-        state: state,
+          if (event.data.type === 'authorization_response') {
+            resolve(event.data);
+          }
+          if (event.data.type === 'authorization_canceled') {
+            reject(new Error('Authorization window was closed'));
+          }
+          $window.removeEventListener('message', authRespListener);
+        }
+        $window.addEventListener('message', authRespListener);
       });
-    authWindow.location = authUrl;
+
+      // Authorize user and retrieve grant token
+      let authUrl = this.authorizationEndpoint;
+      authUrl +=
+        '?' +
+        queryString.stringify({
+          client_id: this.clientId,
+          origin: $window.location.origin,
+          response_mode: 'web_message',
+          response_type: 'code',
+          state: state,
+        });
+      
+      // @ts-ignore - TS doesn't know about `location = <string>`.
+      authWindow.location = authUrl;
+    } else {
+      // appType == firefox-extension
+
+      const sending = new Promise((resolve, reject) => {
+        try {
+          chrome.runtime.sendMessage(
+            {
+              authUrl: this.authorizationEndpoint,
+              clientId: this.clientId,
+              state: state,
+            },
+            resolve
+          );
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      authResponse = sending.then(message => {
+        return new Promise((resolve, reject) => {
+          if (!message.error) {
+            if (message.data.state !== state) {
+              // This message came from a different popup window.
+              return;
+            }
+            resolve(message.data);
+          } else {
+            reject(new Error(message.error));
+          }
+        });
+      });
+    }
 
     return authResponse.then(rsp => rsp.code);
   }
@@ -255,12 +291,10 @@ class OAuthClient {
       })
       .replace(/&/g, ',');
 
-    return $window.open(
+    return /** @type {Window} */ ($window.open(
       'about:blank',
       'Log in to Hypothesis',
       authWindowSettings
-    );
+    ));
   }
 }
-
-module.exports = OAuthClient;

@@ -1,19 +1,17 @@
-'use strict';
-
 /* eslint-disable no-console */
 
-const redux = require('redux');
+import * as redux from 'redux';
 
-const debugMiddleware = require('../debug-middleware');
+import debugMiddleware from '../debug-middleware';
 
 function id(state) {
   return state;
 }
 
-describe('debug middleware', function() {
+describe('debug middleware', function () {
   let store;
 
-  beforeEach(function() {
+  beforeEach(function () {
     sinon.stub(console, 'log');
     sinon.stub(console, 'group');
     sinon.stub(console, 'groupEnd');
@@ -22,7 +20,7 @@ describe('debug middleware', function() {
     store = redux.createStore(id, {}, enhancer);
   });
 
-  afterEach(function() {
+  afterEach(function () {
     console.log.restore();
     console.group.restore();
     console.groupEnd.restore();
@@ -30,13 +28,13 @@ describe('debug middleware', function() {
     delete window.debug;
   });
 
-  it('logs app state changes when "window.debug" is truthy', function() {
+  it('logs app state changes when "window.debug" is truthy', function () {
     window.debug = true;
     store.dispatch({ type: 'SOMETHING_HAPPENED' });
     assert.called(console.log);
   });
 
-  it('logs nothing when "window.debug" is falsey', function() {
+  it('logs nothing when "window.debug" is falsey', function () {
     store.dispatch({ type: 'SOMETHING_HAPPENED' });
     assert.notCalled(console.log);
   });

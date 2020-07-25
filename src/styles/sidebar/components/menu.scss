@@ -1,23 +1,42 @@
+@use "../../mixins/focus";
+@use "../../mixins/layout";
+@use "../../mixins/utils";
+@use "../../variables" as var;
+
 .menu {
   position: relative;
 }
 
 // Toggle button that opens the menu.
 .menu__toggle {
-  @include outline-on-keyboard-focus;
+  @include focus.outline-on-keyboard-focus;
 
   appearance: none;
   border: none;
   background: none;
   padding: 0;
   color: inherit;
-  display: flex;
+  // "block" display is needed so it can take up the
+  //  full height of its parent container
+  display: block;
+  height: 100%;
   align-items: center;
+  &:hover {
+    transition: 0.2s ease-out;
+    color: var.$color-text;
+  }
+  &[aria-expanded='true'],
+  &:hover[aria-expanded='true'] {
+    color: var.$color-brand;
+  }
 }
 
+.menu__toggle-wrapper {
+  @include layout.row($align: center);
+  height: 100%;
+}
 .menu__toggle-icon {
-  width: 10px;
-  height: 10px;
+  @include utils.icon--xsmall;
 }
 
 // Triangular indicator next to the toggle button indicating that there is
@@ -30,13 +49,14 @@
   &.is-open {
     // Flip the indicator when the menu is open.
     transform: rotateX(180deg);
+    color: var.$color-text;
   }
 }
 
 // Triangular indicator at the top of the menu that associates it with the
 // toggle button.
 .menu__arrow {
-  color: $grey-3;
+  color: var.$grey-3;
   fill: white;
 
   // Position the arrow so that it appears flush with the right edge of the
@@ -44,18 +64,20 @@
   // overlaps the content's border. The effect is that the menu's border is a
   // rounded rect with a notch at the top.
   position: absolute;
-  top: calc(100% - 2px);  // nb. Adjust this if changing the <svg> size.
+  top: calc(100% - 2px); // nb. Adjust this if changing the <svg> size.
   right: 0;
-  z-index: 1;
+  z-index: 2;
 }
 
 // Content area of the menu.
 .menu__content {
+  @include utils.font--large;
+  @include utils.border;
+  @include utils.shadow;
   background-color: white;
-  border: 1px solid $grey-3;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
   position: absolute;
   top: calc(100% + 5px);
+  z-index: 1;
 
   &--align-left {
     left: 0;

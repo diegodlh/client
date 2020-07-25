@@ -1,21 +1,49 @@
-'use strict';
+import { createElement } from 'preact';
+import propTypes from 'prop-types';
 
-const events = require('../events');
+import uiConstants from '../ui-constants';
+import useStore from '../store/use-store';
+import { withServices } from '../util/service-context';
+import { applyTheme } from '../util/theme';
 
-module.exports = {
-  controllerAs: 'vm',
-  //@ngInject
-  controller: function($rootScope, store) {
-    this.onNewNoteBtnClick = function() {
-      const topLevelFrame = store.frames().find(f => !f.id);
-      const annot = {
-        target: [],
-        uri: topLevelFrame.uri,
-      };
+import Button from './button';
 
-      $rootScope.$broadcast(events.BEFORE_ANNOTATION_CREATED, annot);
+function NewNoteButton({ annotationsService, settings }) {
+  const topLevelFrame = useStore(store => store.mainFrame());
+  const isLoggedIn = useStore(store => store.isLoggedIn());
+
+  const openSidebarPanel = useStore(store => store.openSidebarPanel);
+
+  const onNewNoteBtnClick = function () {
+    if (!isLoggedIn) {
+      openSidebarPanel(uiConstants.PANEL_LOGIN_PROMPT);
+      return;
+    }
+    const annot = {
+      target: [],
+      uri: topLevelFrame.uri,
     };
-  },
-  bindings: {},
-  template: require('../templates/new-note-btn.html'),
+    annotationsService.create(annot);
+  };
+
+  return (
+    <div className="u-layout-row--justify-right">
+      <Button
+        buttonText="New note"
+        className="button--primary"
+        icon="add"
+        onClick={onNewNoteBtnClick}
+        style={applyTheme(['ctaBackgroundColor'], settings)}
+      />
+    </div>
+  );
+}
+NewNoteButton.propTypes = {
+  // Injected services.
+  annotationsService: propTypes.object.isRequired,
+  settings: propTypes.object.isRequired,
 };
+
+NewNoteButton.injectedProps = ['annotationsService', 'settings'];
+
+export default withServices(NewNoteButton);

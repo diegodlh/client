@@ -1,198 +1,197 @@
-'use strict';
+import { createElement } from 'preact';
+import { useEffect, useMemo, useState } from 'preact/hooks';
+import propTypes from 'prop-types';
+import debounce from 'lodash.debounce';
 
-const events = require('../events');
-const metadata = require('../annotation-metadata');
+import useStore from '../store/use-store';
+import { isHighlight } from '../util/annotation-metadata';
+import { getElementHeightWithMargins } from '../util/dom';
+import {
+  calculateVisibleThreads,
+  THREAD_DIMENSION_DEFAULTS,
+} from '../util/visible-threads';
 
-/**
- * Component which displays a virtualized list of annotation threads.
- */
+import ThreadCard from './thread-card';
 
-const scopeTimeout = require('../util/scope-timeout');
+// The precision of the `scrollPosition` value in pixels; values will be rounded
+// down to the nearest multiple of this scale value
+const SCROLL_PRECISION = 50;
 
-/**
- * Returns the height of the thread for an annotation if it exists in the view
- * or `null` otherwise.
- */
-function getThreadHeight(id) {
-  const threadElement = document.getElementById(id);
-  if (!threadElement) {
-    return null;
-  }
-
-  // Note: `getComputedStyle` may return `null` in Firefox if the iframe is
-  // hidden. See https://bugzilla.mozilla.org/show_bug.cgi?id=548397
-  const style = window.getComputedStyle(threadElement);
-  if (!style) {
-    return null;
-  }
-
-  // Get the height of the element inside the border-box, excluding
-  // top and bottom margins.
-  const elementHeight = threadElement.getBoundingClientRect().height;
-
-  // Get the bottom margin of the element. style.margin{Side} will return
-  // values of the form 'Npx', from which we extract 'N'.
-  const marginHeight =
-    parseFloat(style.marginTop) + parseFloat(style.marginBottom);
-
-  return elementHeight + marginHeight;
+function getScrollContainer() {
+  return document.querySelector('.js-thread-list-scroll-root');
 }
 
-const virtualThreadOptions = {
-  // identify the thread types that need to be rendered
-  // but not actually visible to the user
-  invisibleThreadFilter: function(thread) {
-    // new highlights should always get rendered so we don't
-    // miss saving them via the render-save process
-    return thread.annotation.$highlight && metadata.isNew(thread.annotation);
-  },
-};
+/**
+ * Render a list of threads.
+ *
+ * The thread list is "virtualized", meaning that only threads in or near the
+ * viewport are rendered. This is critical for performance and memory usage as
+ * annotations (and replies) are complex interactive components whose
+ * user-defined content may include rich media such as images, audio clips,
+ * embedded YouTube videos, rendered math and more.
+ */
+function ThreadList({ thread }) {
+  const clearSelection = useStore(store => store.clearSelection);
 
-// @ngInject
-function ThreadListController($element, $scope, settings, VirtualThreadList) {
-  // `visibleThreads` keeps track of the subset of all threads matching the
-  // current filters which are in or near the viewport and the view then renders
-  // only those threads, using placeholders above and below the visible threads
-  // to reserve space for threads which are not actually rendered.
-  const self = this;
-
-  // `scrollRoot` is the `Element` to scroll when scrolling a given thread into
-  // view.
-  //
-  // For now there is only one `<thread-list>` instance in the whole
-  // application so we simply require the scroll root to be annotated with a
-  // specific class. A more generic mechanism was removed due to issues in
-  // Firefox. See https://github.com/hypothesis/client/issues/341
-  this.scrollRoot = document.querySelector('.js-thread-list-scroll-root');
-
-  this.isThemeClean = settings.theme === 'clean';
-
-  const options = Object.assign(
-    {
-      scrollRoot: this.scrollRoot,
-    },
-    virtualThreadOptions
+  // Height of the visible area of the scroll container.
+  const [scrollContainerHeight, setScrollContainerHeight] = useState(
+    getScrollContainer().clientHeight
   );
-  let visibleThreads;
 
-  this.$onInit = () => {
-    visibleThreads = new VirtualThreadList(
-      $scope,
-      window,
-      this.thread,
-      options
-    );
-    // Calculate the visible threads.
-    onVisibleThreadsChanged(visibleThreads.calculateVisibleThreads());
-    // Subscribe onVisibleThreadsChanged to the visibleThreads 'changed' event
-    // after calculating visible threads, to avoid an undesired second call to
-    // onVisibleThreadsChanged that occurs from the emission of the 'changed'
-    // event during the visibleThreads calculation.
-    visibleThreads.on('changed', onVisibleThreadsChanged);
-  };
+  // Scroll offset of scroll container. This is updated after the scroll
+  // container is scrolled, with debouncing to limit update frequency.
+  // These values are in multiples of `SCROLL_PRECISION` to optimize
+  // for performance.
+  const [scrollPosition, setScrollPosition] = useState(
+    getScrollContainer().scrollTop
+  );
 
-  /**
-   * Update which threads are visible in the virtualThreadsList.
-   *
-   * @param {Object} state the new state of the virtualThreadsList
-   */
-  function onVisibleThreadsChanged(state) {
-    self.virtualThreadList = {
-      visibleThreads: state.visibleThreads,
-      invisibleThreads: state.invisibleThreads,
-      offscreenUpperHeight: state.offscreenUpperHeight + 'px',
-      offscreenLowerHeight: state.offscreenLowerHeight + 'px',
-    };
+  // Map of thread ID to measured height of thread.
+  const [threadHeights, setThreadHeights] = useState({});
 
-    scopeTimeout(
-      $scope,
-      function() {
-        state.visibleThreads.forEach(function(thread) {
-          const height = getThreadHeight(thread.id);
-          if (!height) {
-            return;
-          }
-          visibleThreads.setThreadHeight(thread.id, height);
-        });
-      },
-      50
-    );
-  }
+  // ID of thread to scroll to after the next render. If the thread is not
+  // present, the value persists until it can be "consumed".
+  const [scrollToId, setScrollToId] = useState(null);
 
-  /**
-   * Return the vertical scroll offset for the document in order to position the
-   * annotation thread with a given `id` or $tag at the top-left corner
-   * of the view.
-   */
-  function scrollOffset(id) {
-    const maxYOffset =
-      self.scrollRoot.scrollHeight - self.scrollRoot.clientHeight;
-    return Math.min(maxYOffset, visibleThreads.yOffsetOf(id));
-  }
+  const topLevelThreads = thread.children;
 
-  /** Scroll the annotation with a given ID or $tag into view. */
-  function scrollIntoView(id) {
-    const estimatedYOffset = scrollOffset(id);
-    self.scrollRoot.scrollTop = estimatedYOffset;
+  const {
+    offscreenLowerHeight,
+    offscreenUpperHeight,
+    visibleThreads,
+  } = useMemo(
+    () =>
+      calculateVisibleThreads(
+        topLevelThreads,
+        threadHeights,
+        scrollPosition,
+        scrollContainerHeight
+      ),
+    [topLevelThreads, threadHeights, scrollPosition, scrollContainerHeight]
+  );
 
-    // As a result of scrolling the sidebar, the target scroll offset for
-    // annotation `id` might have changed as a result of:
-    //
-    // 1. Heights of some cards above `id` changing from an initial estimate to
-    //    an actual measured height after the card is rendered.
-    // 2. The height of the document changing as a result of any cards heights'
-    //    changing. This may affect the scroll offset if the original target
-    //    was near to the bottom of the list.
-    //
-    // So we wait briefly after the view is scrolled then check whether the
-    // estimated Y offset changed and if so, trigger scrolling again.
-    scopeTimeout(
-      $scope,
-      function() {
-        const newYOffset = scrollOffset(id);
-        if (newYOffset !== estimatedYOffset) {
-          scrollIntoView(id);
-        }
-      },
-      200
-    );
-  }
-
-  $scope.$on(events.BEFORE_ANNOTATION_CREATED, function(event, annotation) {
-    if (annotation.$highlight || metadata.isReply(annotation)) {
-      return;
+  // Get the `$tag` of the most recently created unsaved annotation.
+  const newAnnotationTag = useStore(store => {
+    // If multiple unsaved annotations exist, assume that the last one in the
+    // list is the most recently created one.
+    const newAnnotations = store
+      .unsavedAnnotations()
+      .filter(ann => !ann.id && !isHighlight(ann));
+    if (!newAnnotations.length) {
+      return null;
     }
-    self.onClearSelection();
-    scrollIntoView(annotation.$tag);
+    return newAnnotations[newAnnotations.length - 1].$tag;
   });
 
-  this.$onChanges = function(changes) {
-    if (changes.thread && visibleThreads) {
-      visibleThreads.setRootThread(changes.thread.currentValue);
+  // Scroll to newly created annotations and replies.
+  //
+  // nb. If there are multiple unsaved annotations and the newest one is saved
+  // or removed, `newAnnotationTag` will revert to the previous unsaved annotation
+  // and the thread list will scroll to that.
+  useEffect(() => {
+    if (newAnnotationTag) {
+      clearSelection();
+      setScrollToId(newAnnotationTag);
     }
-  };
+  }, [clearSelection, newAnnotationTag]);
 
-  this.$onDestroy = function() {
-    visibleThreads.detach();
-  };
+  // Effect to scroll a particular thread into view. This is mainly used to
+  // scroll a newly created annotation into view.
+  useEffect(() => {
+    if (!scrollToId) {
+      return;
+    }
+
+    const threadIndex = topLevelThreads.findIndex(t => t.id === scrollToId);
+    if (threadIndex === -1) {
+      // Thread is not currently present. The `scrollToId` will be consumed
+      // when this thread appears.
+      return;
+    }
+
+    // Clear `scrollToId` so we don't scroll again after the next render.
+    setScrollToId(null);
+
+    const getThreadHeight = thread =>
+      threadHeights[thread.id] || THREAD_DIMENSION_DEFAULTS.defaultHeight;
+
+    const yOffset = topLevelThreads
+      .slice(0, threadIndex)
+      .reduce((total, thread) => total + getThreadHeight(thread), 0);
+
+    const scrollContainer = getScrollContainer();
+    scrollContainer.scrollTop = yOffset;
+  }, [scrollToId, topLevelThreads, threadHeights]);
+
+  // Attach listeners such that whenever the scroll container is scrolled or the
+  // window resized, a recalculation of visible threads is triggered
+  useEffect(() => {
+    const scrollContainer = getScrollContainer();
+
+    const updateScrollPosition = debounce(
+      () => {
+        const exactScrollPosition = scrollContainer.scrollTop;
+        // Get scroll position to the nearest `SCROLL_PRECISION` multiple
+        const roundedScrollPosition = Math.max(
+          exactScrollPosition - (exactScrollPosition % SCROLL_PRECISION),
+          0
+        );
+        setScrollContainerHeight(scrollContainer.clientHeight);
+        setScrollPosition(roundedScrollPosition);
+      },
+      10,
+      { maxWait: 100 }
+    );
+
+    scrollContainer.addEventListener('scroll', updateScrollPosition);
+    window.addEventListener('resize', updateScrollPosition);
+
+    return () => {
+      scrollContainer.removeEventListener('scroll', updateScrollPosition);
+      window.removeEventListener('resize', updateScrollPosition);
+      updateScrollPosition.cancel();
+    };
+  }, []);
+
+  // When the set of visible threads changes, recalculate the real rendered
+  // heights of thread cards and update `threadHeights` state if there are changes.
+  useEffect(() => {
+    setThreadHeights(prevHeights => {
+      const changedHeights = {};
+      for (let { id } of visibleThreads) {
+        const threadElement = document.getElementById(id);
+        const height = getElementHeightWithMargins(threadElement);
+        if (height !== prevHeights[id]) {
+          changedHeights[id] = height;
+        }
+      }
+
+      // Skip update if no heights changed from previous measured values
+      // (or defaults).
+      if (Object.keys(changedHeights).length === 0) {
+        return prevHeights;
+      }
+
+      return { ...prevHeights, ...changedHeights };
+    });
+  }, [visibleThreads]);
+
+  return (
+    <div>
+      <div style={{ height: offscreenUpperHeight }} />
+      {visibleThreads.map(child => (
+        <div className="thread-list__card" id={child.id} key={child.id}>
+          <ThreadCard thread={child} />
+        </div>
+      ))}
+      <div style={{ height: offscreenLowerHeight }} />
+    </div>
+  );
 }
 
-module.exports = {
-  controller: ThreadListController,
-  controllerAs: 'vm',
-  bindings: {
-    /** The root thread to be displayed by the thread list. */
-    thread: '<',
-    showDocumentInfo: '<',
-
-    /** Called when the user focuses an annotation by hovering it. */
-    onFocus: '&',
-    /** Called when a user selects an annotation. */
-    onSelect: '&',
-    /** Called when a user toggles the expansion state of an annotation thread. */
-    onChangeCollapsed: '&',
-    /** Called to clear the current selection. */
-    onClearSelection: '&',
-  },
-  template: require('../templates/thread-list.html'),
+ThreadList.propTypes = {
+  /** Should annotations render extra document metadata? */
+  thread: propTypes.object.isRequired,
 };
+
+export default ThreadList;

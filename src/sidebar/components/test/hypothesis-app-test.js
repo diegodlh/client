@@ -1,212 +1,187 @@
-'use strict';
+import { mount } from 'enzyme';
+import { createElement } from 'preact';
 
-const angular = require('angular');
+import bridgeEvents from '../../../shared/bridge-events';
+import mockImportedComponents from '../../../test-util/mock-imported-components';
 
-const events = require('../../events');
-const bridgeEvents = require('../../../shared/bridge-events');
+import HypothesisApp, { $imports } from '../hypothesis-app';
 
-const hypothesisApp = require('../hypothesis-app');
-
-describe('sidebar.components.hypothesis-app', function() {
-  let $componentController = null;
-  let $scope = null;
-  let $rootScope = null;
+describe('HypothesisApp', () => {
+  let fakeUserAgent = null;
   let fakeStore = null;
-  let fakeAnalytics = null;
   let fakeAuth = null;
   let fakeBridge = null;
-  let fakeDrafts = null;
-  let fakeFeatures = null;
-  let fakeFlash = null;
-  let fakeFrameSync = null;
-  let fakeLocation = null;
-  let fakeParams = null;
   let fakeServiceConfig = null;
   let fakeSession = null;
-  let fakeGroups = null;
-  let fakeRoute = null;
+  let fakeShouldAutoDisplayTutorial = null;
   let fakeServiceUrl = null;
   let fakeSettings = null;
-  let fakeStreamer = null;
-  let fakeWindow = null;
+  let fakeToastMessenger = null;
 
-  let sandbox = null;
-
-  const createController = function(locals) {
-    locals = locals || {};
-    locals.$scope = $scope;
-    return $componentController('hypothesisApp', locals);
+  const createComponent = (props = {}) => {
+    return mount(
+      <HypothesisApp
+        auth={fakeAuth}
+        bridge={fakeBridge}
+        serviceUrl={fakeServiceUrl}
+        settings={fakeSettings}
+        session={fakeSession}
+        toastMessenger={fakeToastMessenger}
+        {...props}
+      />
+    );
   };
 
-  beforeEach(function() {
-    sandbox = sinon.sandbox.create();
-  });
+  beforeEach(() => {
+    fakeServiceConfig = sinon.stub();
+    fakeShouldAutoDisplayTutorial = sinon.stub().returns(false);
 
-  beforeEach(function() {
-    fakeServiceConfig = sandbox.stub();
+    fakeStore = {
+      clearSelectedAnnotations: sinon.spy(),
+      clearGroups: sinon.stub(),
+      closeSidebarPanel: sinon.stub(),
+      openSidebarPanel: sinon.stub(),
+      // draft store
+      countDrafts: sinon.stub().returns(0),
+      discardAllDrafts: sinon.stub(),
+      unsavedAnnotations: sinon.stub().returns([]),
+      removeAnnotations: sinon.stub(),
 
-    hypothesisApp.$imports.$mock({
+      hasFetchedProfile: sinon.stub().returns(true),
+      profile: sinon.stub().returns({
+        userid: null,
+        preferences: {
+          show_sidebar_tutorial: false,
+        },
+      }),
+      route: sinon.stub().returns('sidebar'),
+    };
+
+    fakeAuth = {};
+
+    fakeSession = {
+      load: sinon.stub().returns(Promise.resolve({ userid: null })),
+      logout: sinon.stub(),
+      reload: sinon.stub().returns(Promise.resolve({ userid: null })),
+    };
+
+    fakeServiceUrl = sinon.stub();
+
+    fakeSettings = {};
+
+    fakeBridge = {
+      call: sinon.stub(),
+    };
+
+    fakeUserAgent = {
+      isIE11: sinon.stub().returns(false),
+    };
+
+    fakeToastMessenger = {
+      error: sinon.stub(),
+      notice: sinon.stub(),
+    };
+
+    $imports.$mock(mockImportedComponents());
+    $imports.$mock({
+      '../../shared/user-agent': fakeUserAgent,
       '../service-config': fakeServiceConfig,
+      '../store/use-store': callback => callback(fakeStore),
+      '../util/session': {
+        shouldAutoDisplayTutorial: fakeShouldAutoDisplayTutorial,
+      },
     });
-
-    angular.module('h', []).component('hypothesisApp', hypothesisApp);
   });
 
   afterEach(() => {
-    hypothesisApp.$imports.$restore();
+    $imports.$restore();
   });
 
-  beforeEach(angular.mock.module('h'));
-
-  beforeEach(
-    angular.mock.module(function($provide) {
-      fakeStore = {
-        tool: 'comment',
-        clearSelectedAnnotations: sandbox.spy(),
-        getState: sinon.stub(),
-        clearGroups: sinon.stub(),
-      };
-
-      fakeAnalytics = {
-        track: sandbox.stub(),
-        events: require('../../services/analytics').events,
-      };
-
-      fakeAuth = {};
-
-      fakeDrafts = {
-        contains: sandbox.stub(),
-        remove: sandbox.spy(),
-        all: sandbox.stub().returns([]),
-        discard: sandbox.spy(),
-        count: sandbox.stub().returns(0),
-        unsaved: sandbox.stub().returns([]),
-      };
-
-      fakeFeatures = {
-        fetch: sandbox.spy(),
-        flagEnabled: sandbox.stub().returns(false),
-      };
-
-      fakeFlash = {
-        error: sandbox.stub(),
-      };
-
-      fakeFrameSync = {
-        connect: sandbox.spy(),
-      };
-
-      fakeLocation = {
-        search: sandbox.stub().returns({}),
-      };
-
-      fakeParams = { id: 'test' };
-
-      fakeSession = {
-        load: sandbox.stub().returns(Promise.resolve({ userid: null })),
-        logout: sandbox.stub(),
-        reload: sandbox.stub().returns(Promise.resolve({ userid: null })),
-      };
-
-      fakeGroups = {
-        focus: sandbox.spy(),
-      };
-
-      fakeRoute = { reload: sandbox.spy() };
-
-      fakeWindow = {
-        top: {},
-        confirm: sandbox.stub(),
-        open: sandbox.stub(),
-      };
-
-      fakeServiceUrl = sinon.stub();
-      fakeSettings = {};
-      fakeStreamer = {
-        countPendingUpdates: sinon.stub(),
-        applyPendingUpdates: sinon.stub(),
-      };
-      fakeBridge = {
-        call: sandbox.stub(),
-      };
-
-      $provide.value('store', fakeStore);
-      $provide.value('auth', fakeAuth);
-      $provide.value('analytics', fakeAnalytics);
-      $provide.value('drafts', fakeDrafts);
-      $provide.value('features', fakeFeatures);
-      $provide.value('flash', fakeFlash);
-      $provide.value('frameSync', fakeFrameSync);
-      $provide.value('serviceUrl', fakeServiceUrl);
-      $provide.value('session', fakeSession);
-      $provide.value('settings', fakeSettings);
-      $provide.value('bridge', fakeBridge);
-      $provide.value('streamer', fakeStreamer);
-      $provide.value('groups', fakeGroups);
-      $provide.value('$route', fakeRoute);
-      $provide.value('$location', fakeLocation);
-      $provide.value('$routeParams', fakeParams);
-      $provide.value('$window', fakeWindow);
-    })
-  );
-
-  beforeEach(
-    angular.mock.inject(function(_$componentController_, _$rootScope_) {
-      $componentController = _$componentController_;
-      $rootScope = _$rootScope_;
-      $scope = $rootScope.$new();
-    })
-  );
-
-  afterEach(function() {
-    sandbox.restore();
-  });
-
-  describe('#isSidebar', function() {
-    it('is false if the window is the top window', function() {
-      fakeWindow.top = fakeWindow;
-      const ctrl = createController();
-      assert.isFalse(ctrl.isSidebar);
-    });
-
-    it('is true if the window is not the top window', function() {
-      fakeWindow.top = {};
-      const ctrl = createController();
-      assert.isTrue(ctrl.isSidebar);
+  it('does not render content if route is not yet determined', () => {
+    fakeStore.route.returns(null);
+    const wrapper = createComponent();
+    [
+      'main',
+      'AnnotationViewerContent',
+      'StreamContent',
+      'SidebarContent',
+    ].forEach(contentComponent => {
+      assert.isFalse(wrapper.exists(contentComponent));
     });
   });
 
-  it('connects to host frame in the sidebar app', function() {
-    fakeWindow.top = {};
-    createController();
-    assert.called(fakeFrameSync.connect);
-  });
-
-  it('does not connect to the host frame in the stream', function() {
-    fakeWindow.top = fakeWindow;
-    createController();
-    assert.notCalled(fakeFrameSync.connect);
-  });
-
-  it('auth.status is "unknown" on startup', function() {
-    const ctrl = createController();
-    assert.equal(ctrl.auth.status, 'unknown');
-  });
-
-  it('sets auth.status to "logged-out" if userid is null', function() {
-    const ctrl = createController();
-    return fakeSession.load().then(function() {
-      assert.equal(ctrl.auth.status, 'logged-out');
+  [
+    {
+      route: 'annotation',
+      contentComponent: 'AnnotationViewerContent',
+    },
+    {
+      route: 'sidebar',
+      contentComponent: 'SidebarContent',
+    },
+    {
+      route: 'stream',
+      contentComponent: 'StreamContent',
+    },
+  ].forEach(({ route, contentComponent }) => {
+    it('renders app content for route', () => {
+      fakeStore.route.returns(route);
+      const wrapper = createComponent();
+      assert.isTrue(wrapper.find(contentComponent).exists());
     });
   });
 
-  it('sets auth.status to "logged-in" if userid is non-null', function() {
-    fakeSession.load = function() {
-      return Promise.resolve({ userid: 'acct:jim@hypothes.is' });
-    };
-    const ctrl = createController();
-    return fakeSession.load().then(function() {
-      assert.equal(ctrl.auth.status, 'logged-in');
+  describe('auto-opening tutorial', () => {
+    it('should open tutorial on profile load when criteria are met', () => {
+      fakeShouldAutoDisplayTutorial.returns(true);
+      createComponent();
+      assert.calledOnce(fakeStore.openSidebarPanel);
+    });
+
+    it('should not open tutorial on profile load when criteria are not met', () => {
+      fakeShouldAutoDisplayTutorial.returns(false);
+      createComponent();
+      assert.notCalled(fakeStore.openSidebarPanel);
+    });
+  });
+
+  describe('toast message warning of IE11 deprecation', () => {
+    it('shows notice if user agent is IE11', () => {
+      fakeUserAgent.isIE11.returns(true);
+
+      createComponent();
+
+      assert.called(fakeToastMessenger.notice);
+    });
+
+    it('does not show notice if another user agent', () => {
+      fakeUserAgent.isIE11.returns(false);
+
+      createComponent();
+
+      assert.notCalled(fakeToastMessenger.notice);
+    });
+  });
+
+  describe('"status" field of "auth" prop passed to children', () => {
+    const getStatus = wrapper => wrapper.find('TopBar').prop('auth').status;
+
+    it('is "unknown" if profile has not yet been fetched', () => {
+      fakeStore.hasFetchedProfile.returns(false);
+      const wrapper = createComponent();
+      assert.equal(getStatus(wrapper), 'unknown');
+    });
+
+    it('is "logged-out" if userid is null', () => {
+      fakeStore.profile.returns({ userid: null });
+      const wrapper = createComponent();
+      assert.equal(getStatus(wrapper), 'logged-out');
+    });
+
+    it('is "logged-in" if userid is non-null', () => {
+      fakeStore.profile.returns({ userid: 'acct:jimsmith@hypothes.is' });
+      const wrapper = createComponent();
+      assert.equal(getStatus(wrapper), 'logged-in');
     });
   });
 
@@ -244,182 +219,101 @@ describe('sidebar.components.hypothesis-app', function() {
       },
     },
   ].forEach(({ profile, expectedAuth }) => {
-    it('sets `auth` properties when profile has loaded', () => {
-      fakeSession.load = () => Promise.resolve(profile);
-      const ctrl = createController();
-      return fakeSession.load().then(() => {
-        assert.deepEqual(ctrl.auth, expectedAuth);
-      });
+    it('passes expected "auth" prop to children', () => {
+      fakeStore.profile.returns(profile);
+      const wrapper = createComponent();
+      const auth = wrapper.find('TopBar').prop('auth');
+      assert.deepEqual(auth, expectedAuth);
     });
   });
 
-  it('updates auth when the logged-in user changes', function() {
-    const ctrl = createController();
-    return fakeSession.load().then(function() {
-      $scope.$broadcast(events.USER_CHANGED, {
-        profile: {
-          userid: 'acct:john@hypothes.is',
-        },
-      });
-      assert.deepEqual(ctrl.auth, {
-        status: 'logged-in',
-        displayName: 'john',
-        userid: 'acct:john@hypothes.is',
-        username: 'john',
-        provider: 'hypothes.is',
-      });
-    });
-  });
+  describe('"Sign up" action', () => {
+    const clickSignUp = wrapper => wrapper.find('TopBar').props().onSignUp();
 
-  it('does not show the share dialog at start', function() {
-    const ctrl = createController();
-    assert.isFalse(ctrl.shareDialog.visible);
-  });
-
-  describe('#signUp', function() {
-    it('tracks sign up requests in analytics', function() {
-      const ctrl = createController();
-      ctrl.signUp();
-      assert.calledWith(
-        fakeAnalytics.track,
-        fakeAnalytics.events.SIGN_UP_REQUESTED
-      );
+    beforeEach(() => {
+      sinon.stub(window, 'open');
     });
 
-    context('when using a third-party service', function() {
-      beforeEach(function() {
+    afterEach(() => {
+      window.open.restore();
+    });
+
+    context('when using a third-party service', () => {
+      beforeEach(() => {
         fakeServiceConfig.returns({});
       });
 
-      it('sends SIGNUP_REQUESTED event', function() {
-        const ctrl = createController();
-        ctrl.signUp();
+      it('sends SIGNUP_REQUESTED event', () => {
+        const wrapper = createComponent();
+        clickSignUp(wrapper);
         assert.calledWith(fakeBridge.call, bridgeEvents.SIGNUP_REQUESTED);
       });
 
-      it('does not open a URL directly', function() {
-        const ctrl = createController();
-        ctrl.signUp();
-        assert.notCalled(fakeWindow.open);
+      it('does not open a URL directly', () => {
+        const wrapper = createComponent();
+        clickSignUp(wrapper);
+        assert.notCalled(window.open);
       });
     });
 
-    context('when not using a third-party service', function() {
-      it('opens the signup URL in a new tab', function() {
+    context('when not using a third-party service', () => {
+      it('opens the signup URL in a new tab', () => {
         fakeServiceUrl.withArgs('signup').returns('https://ann.service/signup');
-        const ctrl = createController();
-        ctrl.signUp();
-        assert.calledWith(fakeWindow.open, 'https://ann.service/signup');
+        const wrapper = createComponent();
+        clickSignUp(wrapper);
+        assert.calledWith(window.open, 'https://ann.service/signup');
       });
     });
   });
 
-  describe('#showHelpPanel', function() {
-    context('when using a third-party service', function() {
-      context("when there's no onHelpRequest callback function", function() {
-        beforeEach('configure a service with no onHelpRequest', function() {
-          fakeServiceConfig.returns({});
-        });
+  describe('"Log in" action', () => {
+    const clickLogIn = wrapper => wrapper.find('TopBar').props().onLogin();
 
-        it('does not send an event', function() {
-          createController().showHelpPanel();
-
-          assert.notCalled(fakeBridge.call);
-        });
-
-        it('shows the help panel', function() {
-          const ctrl = createController();
-
-          ctrl.showHelpPanel();
-
-          assert.isTrue(ctrl.helpPanel.visible);
-        });
-      });
-
-      context("when there's an onHelpRequest callback function", function() {
-        beforeEach('provide an onHelpRequest callback', function() {
-          fakeServiceConfig.returns({ onHelpRequestProvided: true });
-        });
-
-        it('sends the HELP_REQUESTED event', function() {
-          createController().showHelpPanel();
-
-          assert.calledWith(fakeBridge.call, bridgeEvents.HELP_REQUESTED);
-        });
-
-        it('does not show the help panel', function() {
-          const ctrl = createController();
-
-          ctrl.showHelpPanel();
-
-          assert.isFalse(ctrl.helpPanel.visible);
-        });
-      });
-    });
-
-    context('when not using a third-party service', function() {
-      it('does not send an event', function() {
-        createController().showHelpPanel();
-
-        assert.notCalled(fakeBridge.call);
-      });
-
-      it('shows the help panel', function() {
-        const ctrl = createController();
-
-        ctrl.showHelpPanel();
-
-        assert.isTrue(ctrl.helpPanel.visible);
-      });
-    });
-  });
-
-  describe('#login()', function() {
     beforeEach(() => {
       fakeAuth.login = sinon.stub().returns(Promise.resolve());
-      fakeStore.getState.returns({ directLinkedGroupFetchFailed: false });
     });
 
-    it('clears groups', () => {
-      const ctrl = createController();
-
-      return ctrl.login().then(() => {
-        assert.called(fakeStore.clearGroups);
-      });
+    it('clears groups', async () => {
+      const wrapper = createComponent();
+      await clickLogIn(wrapper);
+      assert.called(fakeStore.clearGroups);
     });
 
-    it('initiates the OAuth login flow', () => {
-      const ctrl = createController();
-      ctrl.login();
+    it('initiates the OAuth login flow', async () => {
+      const wrapper = createComponent();
+      await clickLogIn(wrapper);
       assert.called(fakeAuth.login);
     });
 
-    it('reloads the session when login completes', () => {
-      const ctrl = createController();
-      return ctrl.login().then(() => {
-        assert.called(fakeSession.reload);
-      });
+    it('reloads the session when login completes', async () => {
+      const wrapper = createComponent();
+      await clickLogIn(wrapper);
+      assert.called(fakeSession.reload);
     });
 
-    it('reports an error if login fails', () => {
+    it('closes the login prompt panel', async () => {
+      const wrapper = createComponent();
+      await clickLogIn(wrapper);
+      assert.called(fakeStore.closeSidebarPanel);
+    });
+
+    it('reports an error if login fails', async () => {
       fakeAuth.login.returns(Promise.reject(new Error('Login failed')));
 
-      const ctrl = createController();
-
-      return ctrl.login().then(null, () => {
-        assert.called(fakeFlash.error);
-      });
+      const wrapper = createComponent();
+      await clickLogIn(wrapper);
+      assert.called(fakeToastMessenger.error);
     });
 
-    it('sends LOGIN_REQUESTED if a third-party service is in use', function() {
+    it('sends LOGIN_REQUESTED event to host page if using a third-party service', async () => {
       // If the client is using a third-party annotation service then clicking
       // on a login button should send the LOGIN_REQUESTED event over the bridge
       // (so that the partner site we're embedded in can do its own login
       // thing).
       fakeServiceConfig.returns({});
-      const ctrl = createController();
 
-      ctrl.login();
+      const wrapper = createComponent();
+      await clickLogIn(wrapper);
 
       assert.equal(fakeBridge.call.callCount, 1);
       assert.isTrue(
@@ -428,116 +322,109 @@ describe('sidebar.components.hypothesis-app', function() {
     });
   });
 
-  describe('#share()', function() {
-    it('shows the share dialog', function() {
-      const ctrl = createController();
-      ctrl.share();
-      assert.equal(ctrl.shareDialog.visible, true);
+  describe('"Log out" action', () => {
+    const clickLogOut = wrapper => wrapper.find('TopBar').props().onLogout();
+
+    beforeEach(() => {
+      sinon.stub(window, 'confirm');
     });
-  });
 
-  describe('#logout()', function() {
-    // Tests shared by both of the contexts below.
-    function doSharedTests() {
-      it('prompts the user if there are drafts', function() {
-        fakeDrafts.count.returns(1);
-        const ctrl = createController();
+    afterEach(() => {
+      window.confirm.restore();
+    });
 
-        ctrl.logout();
+    // Tests used by both the first and third-party account scenarios.
+    function addCommonLogoutTests() {
+      // nb. Slightly different messages are shown depending on the draft count.
+      [1, 2].forEach(draftCount => {
+        it('prompts the user if there are drafts', () => {
+          fakeStore.countDrafts.returns(draftCount);
 
-        assert.equal(fakeWindow.confirm.callCount, 1);
+          const wrapper = createComponent();
+          clickLogOut(wrapper);
+
+          assert.equal(window.confirm.callCount, 1);
+        });
       });
 
       it('clears groups', () => {
-        const ctrl = createController();
-
-        ctrl.logout();
+        const wrapper = createComponent();
+        clickLogOut(wrapper);
 
         assert.called(fakeStore.clearGroups);
       });
 
-      it('emits "annotationDeleted" for each unsaved draft annotation', function() {
-        fakeDrafts.unsaved = sandbox
+      it('removes unsaved annotations', () => {
+        fakeStore.unsavedAnnotations = sinon
           .stub()
           .returns(['draftOne', 'draftTwo', 'draftThree']);
-        const ctrl = createController();
-        $rootScope.$emit = sandbox.stub();
+        const wrapper = createComponent();
+        clickLogOut(wrapper);
 
-        ctrl.logout();
-
-        assert($rootScope.$emit.calledThrice);
-        assert.deepEqual($rootScope.$emit.firstCall.args, [
-          'annotationDeleted',
+        assert.calledWith(fakeStore.removeAnnotations, [
           'draftOne',
-        ]);
-        assert.deepEqual($rootScope.$emit.secondCall.args, [
-          'annotationDeleted',
           'draftTwo',
-        ]);
-        assert.deepEqual($rootScope.$emit.thirdCall.args, [
-          'annotationDeleted',
           'draftThree',
         ]);
       });
 
-      it('discards draft annotations', function() {
-        const ctrl = createController();
+      it('discards drafts', () => {
+        const wrapper = createComponent();
+        clickLogOut(wrapper);
 
-        ctrl.logout();
-
-        assert(fakeDrafts.discard.calledOnce);
+        assert(fakeStore.discardAllDrafts.calledOnce);
       });
 
-      it('does not emit "annotationDeleted" if the user cancels the prompt', function() {
-        const ctrl = createController();
-        fakeDrafts.count.returns(1);
-        $rootScope.$emit = sandbox.stub();
-        fakeWindow.confirm.returns(false);
+      it('does not remove unsaved annotations if the user cancels the prompt', () => {
+        const wrapper = createComponent();
+        fakeStore.countDrafts.returns(1);
+        window.confirm.returns(false);
 
-        ctrl.logout();
+        clickLogOut(wrapper);
 
-        assert($rootScope.$emit.notCalled);
+        assert.notCalled(fakeStore.removeAnnotations);
       });
 
-      it('does not discard drafts if the user cancels the prompt', function() {
-        const ctrl = createController();
-        fakeDrafts.count.returns(1);
-        fakeWindow.confirm.returns(false);
+      it('does not discard drafts if the user cancels the prompt', () => {
+        const wrapper = createComponent();
+        fakeStore.countDrafts.returns(1);
+        window.confirm.returns(false);
 
-        ctrl.logout();
+        clickLogOut(wrapper);
 
-        assert(fakeDrafts.discard.notCalled);
+        assert(fakeStore.discardAllDrafts.notCalled);
       });
 
-      it('does not prompt if there are no drafts', function() {
-        const ctrl = createController();
-        fakeDrafts.count.returns(0);
+      it('does not prompt if there are no drafts', () => {
+        const wrapper = createComponent();
+        fakeStore.countDrafts.returns(0);
 
-        ctrl.logout();
+        clickLogOut(wrapper);
 
-        assert.equal(fakeWindow.confirm.callCount, 0);
+        assert.notCalled(window.confirm);
       });
     }
 
-    context('when no third-party service is in use', function() {
-      doSharedTests();
+    context('when no third-party service is in use', () => {
+      addCommonLogoutTests();
 
-      it('calls session.logout()', function() {
-        const ctrl = createController();
-        ctrl.logout();
+      it('calls session.logout()', () => {
+        const wrapper = createComponent();
+        clickLogOut(wrapper);
         assert.called(fakeSession.logout);
       });
     });
 
-    context('when a third-party service is in use', function() {
-      beforeEach('configure a third-party service to be in use', function() {
+    context('when a third-party service is in use', () => {
+      beforeEach('configure a third-party service to be in use', () => {
         fakeServiceConfig.returns({});
       });
 
-      doSharedTests();
+      addCommonLogoutTests();
 
-      it('sends LOGOUT_REQUESTED', function() {
-        createController().logout();
+      it('sends LOGOUT_REQUESTED', () => {
+        const wrapper = createComponent();
+        clickLogOut(wrapper);
 
         assert.calledOnce(fakeBridge.call);
         assert.calledWithExactly(
@@ -546,18 +433,19 @@ describe('sidebar.components.hypothesis-app', function() {
         );
       });
 
-      it('does not send LOGOUT_REQUESTED if the user cancels the prompt', function() {
-        fakeDrafts.count.returns(1);
-        fakeWindow.confirm.returns(false);
+      it('does not send LOGOUT_REQUESTED if the user cancels the prompt', () => {
+        fakeStore.countDrafts.returns(1);
+        window.confirm.returns(false);
 
-        createController().logout();
+        const wrapper = createComponent();
+        clickLogOut(wrapper);
 
         assert.notCalled(fakeBridge.call);
       });
 
-      it('does not call session.logout()', function() {
-        createController().logout();
-
+      it('does not call session.logout()', () => {
+        const wrapper = createComponent();
+        clickLogOut(wrapper);
         assert.notCalled(fakeSession.logout);
       });
     });

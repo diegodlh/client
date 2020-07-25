@@ -1,14 +1,10 @@
-'use strict';
-
-const extend = require('extend');
-
-const RPC = require('./frame-rpc');
+import RPC from './frame-rpc';
 
 /**
  * The Bridge service sets up a channel between frames and provides an events
  * API on top of it.
  */
-class Bridge {
+export default class Bridge {
   constructor() {
     this.links = [];
     this.channelListeners = {};
@@ -56,7 +52,7 @@ class Bridge {
       }
     };
 
-    const listeners = extend({ connect }, this.channelListeners);
+    const listeners = { connect, ...this.channelListeners };
 
     // Set up a channel
     channel = new RPC(window, source, origin, listeners);
@@ -79,7 +75,7 @@ class Bridge {
    *
    * @param {string} method - Name of remote method to call.
    * @param {any[]} args - Arguments to method.
-   * @param [Function] callback - Called with an array of results.
+   * @return {Promise<any[]>} - Array of results, one per connected frame
    */
   call(method, ...args) {
     let cb;
@@ -98,11 +94,11 @@ class Bridge {
       };
     };
 
-    const promises = this.links.map(function(l) {
-      const p = new Promise(function(resolve, reject) {
+    const promises = this.links.map(function (l) {
+      const p = new Promise(function (resolve, reject) {
         const timeout = setTimeout(() => resolve(null), 1000);
         try {
-          return l.channel.call(method, ...Array.from(args), function(
+          return l.channel.call(method, ...Array.from(args), function (
             err,
             result
           ) {
@@ -169,5 +165,3 @@ class Bridge {
     return this;
   }
 }
-
-module.exports = Bridge;

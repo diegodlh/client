@@ -4,27 +4,24 @@ Plugin = require('../plugin')
 
 Delegator = require('../delegator')
 $ = require('jquery')
-Delegator['@noCallThru'] = true
 
 Guest = require('../guest')
+{ $imports } = require('../guest')
 rangeUtil = null
 selections = null
 
-raf = sinon.stub().yields()
-raf['@noCallThru'] = true
-
 scrollIntoView = sinon.stub()
-scrollIntoView['@noCallThru'] = true
 
 class FakeAdder
   instance: null
 
-  constructor: ->
+  constructor: (container, options) ->
     FakeAdder::instance = this
 
     this.hide = sinon.stub()
     this.showAt = sinon.stub()
     this.target = sinon.stub()
+    this.options = options
 
 class FakePlugin extends Plugin
   instance: null
@@ -43,7 +40,7 @@ timeoutPromise = (millis = 0) ->
   new Promise((resolve) -> setTimeout(resolve, millis))
 
 describe 'Guest', ->
-  sandbox = sinon.sandbox.create()
+  sandbox = sinon.createSandbox()
   CrossFrame = null
   fakeCrossFrame = null
   highlighter = null
@@ -61,6 +58,7 @@ describe 'Guest', ->
 
     FakeAdder::instance = null
     rangeUtil = {
+      itemsForRange: sinon.stub().returns([])
       isSelectionBackwards: sinon.stub()
       selectionFocusRect: sinon.stub()
     }
@@ -74,7 +72,9 @@ describe 'Guest', ->
       anchor: sinon.stub()
     }
 
-    Guest.$imports.$mock({
+    sinon.stub(window, 'requestAnimationFrame').yields()
+
+    $imports.$mock({
       './adder': {Adder: FakeAdder},
       './anchoring/html': htmlAnchoring,
       './highlighter': highlighter,
@@ -85,7 +85,6 @@ describe 'Guest', ->
           return () ->
         )
       './delegator': Delegator,
-      'raf': raf,
       'scroll-into-view': scrollIntoView,
     })
 
@@ -101,9 +100,10 @@ describe 'Guest', ->
     guestConfig.pluginClasses['CrossFrame'] = CrossFrame
 
   afterEach ->
+    window.requestAnimationFrame.restore()
     sandbox.restore()
     console.warn.restore()
-    Guest.$imports.$restore()
+    $imports.$restore()
 
   describe 'plugins', ->
     fakePlugin = null
@@ -217,18 +217,18 @@ describe 'Guest', ->
           {annotation: {$tag: 'tag2'}, highlights: highlight1.toArray()}
         ]
         emitGuestEvent('focusAnnotations', ['tag1'])
-        assert.isTrue(highlight0.hasClass('annotator-hl-focused'))
+        assert.isTrue(highlight0.hasClass('hypothesis-highlight-focused'))
 
       it 'unfocuses any annotations without a matching tag', ->
-        highlight0 = $('<span class="annotator-hl-focused"></span>')
-        highlight1 = $('<span class="annotator-hl-focused"></span>')
+        highlight0 = $('<span class="hypothesis-highlight-focused"></span>')
+        highlight1 = $('<span class="hypothesis-highlight-focused"></span>')
         guest = createGuest()
         guest.anchors = [
           {annotation: {$tag: 'tag1'}, highlights: highlight0.toArray()}
           {annotation: {$tag: 'tag2'}, highlights: highlight1.toArray()}
         ]
         emitGuestEvent('focusAnnotations', 'ctx', ['tag1'])
-        assert.isFalse(highlight1.hasClass('annotator-hl-focused'))
+        assert.isFalse(highlight1.hasClass('hypothesis-highlight-focused'))
 
     describe 'on "scrollToAnnotation" event', ->
 
@@ -320,36 +320,90 @@ describe 'Guest', ->
 
   describe 'document events', ->
 
+    fakeSidebarFrame = null
     guest = null
+    rootElement = null
+
+    methods =
+      'click': 'onElementClick'
+      'touchstart': 'onElementTouchStart'
 
     beforeEach ->
+      fakeSidebarFrame = null
       guest = createGuest()
+      rootElement = guest.element[0]
 
-    it 'emits "hideSidebar" on cross frame when the user taps or clicks in the page', ->
-      methods =
-        'click': 'onElementClick'
-        'touchstart': 'onElementTouchStart'
+    afterEach ->
+      fakeSidebarFrame?.remove()
+
+    it 'hides sidebar when the user taps or clicks in the page', ->
 
       for event in ['click', 'touchstart']
         sandbox.spy(guest, methods[event])
-        guest.element.trigger(event)
+
+        rootElement.dispatchEvent(new Event(event))
+
         assert.called(guest[methods[event]])
         assert.calledWith(guest.plugins.CrossFrame.call, 'hideSidebar')
 
+    it 'does not hide sidebar if event occurs inside annotator UI', ->
+      fakeSidebarFrame = document.createElement('div')
+      fakeSidebarFrame.className = 'annotator-frame'
+      rootElement.appendChild(fakeSidebarFrame)
+
+      for event in ['click', 'touchstart']
+        sandbox.spy(guest, methods[event])
+
+        fakeSidebarFrame.dispatchEvent(new Event(event, { bubbles: true }))
+
+        assert.called(guest[methods[event]])
+        assert.notCalled(guest.plugins.CrossFrame.call)
+
+
   describe 'when the selection changes', ->
-    it 'shows the adder if the selection contains text', ->
-      guest = createGuest()
+    container = null
+
+    beforeEach ->
+      container = document.createElement('div')
+      container.innerHTML = 'test text'
+      document.body.appendChild(container)
+      window.getSelection().selectAllChildren(container)
+
+    afterEach ->
+      container.remove()
+
+    simulateSelectionWithText = ->
       rangeUtil.selectionFocusRect.returns({left: 0, top: 0, width: 5, height: 5})
       FakeAdder::instance.target.returns({
         left: 0, top: 0, arrowDirection: adder.ARROW_POINTING_UP
       })
       selections.next({})
+
+    simulateSelectionWithoutText = ->
+      rangeUtil.selectionFocusRect.returns(null)
+      selections.next({})
+
+    it 'shows the adder if the selection contains text', ->
+      guest = createGuest()
+      simulateSelectionWithText()
       assert.called FakeAdder::instance.showAt
+
+    it 'sets the annotations associated with the selection', ->
+      guest = createGuest()
+      ann = {}
+      $(container).data('annotation', ann)
+      rangeUtil.itemsForRange.callsFake((range, callback) ->
+        [callback(range.startContainer)]
+      )
+      simulateSelectionWithText()
+
+      assert.deepEqual FakeAdder::instance.annotationsForSelection, [ann]
 
     it 'hides the adder if the selection does not contain text', ->
       guest = createGuest()
-      rangeUtil.selectionFocusRect.returns(null)
-      selections.next({})
+
+      simulateSelectionWithoutText()
+
       assert.called FakeAdder::instance.hide
       assert.notCalled FakeAdder::instance.showAt
 
@@ -357,6 +411,33 @@ describe 'Guest', ->
       guest = createGuest()
       selections.next(null)
       assert.called FakeAdder::instance.hide
+
+    it "sets the toolbar's `newAnnotationType` to 'annotation' if there is a selection", ->
+      guest = createGuest()
+      guest.toolbar = {}
+
+      simulateSelectionWithText()
+
+      assert.equal guest.toolbar.newAnnotationType, 'annotation'
+
+    it "sets the toolbar's `newAnnotationType` to 'note' if the selection is empty", ->
+      guest = createGuest()
+      guest.toolbar = {}
+
+      simulateSelectionWithoutText()
+
+      assert.equal guest.toolbar.newAnnotationType, 'note'
+
+  describe 'when adder toolbar buttons are clicked', ->
+    # TODO - Add tests for "Annotate" and "Highlight" buttons.
+
+    it 'shows annotations if "Show" is clicked', ->
+      createGuest()
+
+      FakeAdder::instance.options.onShowAnnotations([{ $tag: 'ann1' }]);
+
+      assert.calledWith(fakeCrossFrame.call, 'showSidebar')
+      assert.calledWith(fakeCrossFrame.call, 'showAnnotations', ['ann1'])
 
   describe '#getDocumentInfo()', ->
     guest = null

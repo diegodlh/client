@@ -1,6 +1,8 @@
-'use strict';
+/**
+ * @typedef {import('../../types/config').MergedConfig} MergedConfig
+ */
 
-const serviceConfig = require('../service-config');
+import serviceConfig from '../service-config';
 
 /**
  * Return `true` if the first configured service is a "third-party" service.
@@ -10,10 +12,10 @@ const serviceConfig = require('../service-config');
  *
  * If no custom annotation services are configured then return `false`.
  *
- * @param {Object} settings - the sidebar settings object
- *
+ * @param {MergedConfig} settings
+ * @return {boolean}
  */
-function isThirdPartyService(settings) {
+export default function isThirdPartyService(settings) {
   const service = serviceConfig(settings);
 
   if (service === null) {
@@ -26,5 +28,3 @@ function isThirdPartyService(settings) {
 
   return service.authority !== settings.authDomain;
 }
-
-module.exports = isThirdPartyService;

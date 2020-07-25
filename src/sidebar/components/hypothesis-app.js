@@ -1,12 +1,24 @@
-'use strict';
+import { createElement } from 'preact';
+import { useEffect, useMemo } from 'preact/hooks';
+import propTypes from 'prop-types';
 
-const scrollIntoView = require('scroll-into-view');
+import bridgeEvents from '../../shared/bridge-events';
+import { isIE11 } from '../../shared/user-agent';
+import serviceConfig from '../service-config';
+import useStore from '../store/use-store';
+import uiConstants from '../ui-constants';
+import { parseAccountID } from '../util/account-id';
+import { shouldAutoDisplayTutorial } from '../util/session';
+import { applyTheme } from '../util/theme';
+import { withServices } from '../util/service-context';
 
-const events = require('../events');
-const { parseAccountID } = require('../util/account-id');
-const scopeTimeout = require('../util/scope-timeout');
-const serviceConfig = require('../service-config');
-const bridgeEvents = require('../../shared/bridge-events');
+import AnnotationViewerContent from './annotation-viewer-content';
+import HelpPanel from './help-panel';
+import ShareAnnotationsPanel from './share-annotations-panel';
+import SidebarContent from './sidebar-content';
+import StreamContent from './stream-content';
+import ToastMessages from './toast-messages';
+import TopBar from './top-bar';
 
 /**
  * Return the user's authentication status from their profile.
@@ -32,152 +44,119 @@ function authStateFromProfile(profile) {
   }
 }
 
-// @ngInject
-function HypothesisAppController(
-  $document,
-  $location,
-  $rootScope,
-  $route,
-  $scope,
-  $window,
-  analytics,
-  store,
+/**
+ * The root component for the Hypothesis client.
+ *
+ * This handles login/logout actions and renders the top navigation bar
+ * and content appropriate for the current route.
+ */
+function HypothesisApp({
   auth,
   bridge,
-  drafts,
-  features,
-  flash,
-  frameSync,
-  groups,
   serviceUrl,
-  session,
   settings,
-  streamer
-) {
-  const self = this;
+  session,
+  toastMessenger,
+}) {
+  const clearGroups = useStore(store => store.clearGroups);
+  const closeSidebarPanel = useStore(store => store.closeSidebarPanel);
+  const countDrafts = useStore(store => store.countDrafts);
+  const discardAllDrafts = useStore(store => store.discardAllDrafts);
+  const hasFetchedProfile = useStore(store => store.hasFetchedProfile());
+  const openSidebarPanel = useStore(store => store.openSidebarPanel);
+  const profile = useStore(store => store.profile());
+  const removeAnnotations = useStore(store => store.removeAnnotations);
+  const route = useStore(store => store.route());
+  const unsavedAnnotations = useStore(store => store.unsavedAnnotations);
 
-  // This stores information about the current user's authentication status.
-  // When the controller instantiates we do not yet know if the user is
-  // logged-in or not, so it has an initial status of 'unknown'. This can be
-  // used by templates to show an intermediate or loading state.
-  this.auth = { status: 'unknown' };
+  const authState = useMemo(() => {
+    if (!hasFetchedProfile) {
+      return { status: 'unknown' };
+    }
+    return authStateFromProfile(profile);
+  }, [hasFetchedProfile, profile]);
 
-  // App dialogs
-  this.shareDialog = { visible: false };
-  this.helpPanel = { visible: false };
+  const backgroundStyle = useMemo(
+    () => applyTheme(['backgroundColor'], settings),
+    [settings]
+  );
 
-  // Check to see if we're in the sidebar, or on a standalone page such as
-  // the stream page or an individual annotation page.
-  this.isSidebar = $window.top !== $window;
-  if (this.isSidebar) {
-    frameSync.connect();
-  }
+  const isSidebar = route === 'sidebar';
 
-  // Reload the view when the user switches accounts
-  $scope.$on(events.USER_CHANGED, function(event, data) {
-    self.auth = authStateFromProfile(data.profile);
-  });
+  useEffect(() => {
+    if (shouldAutoDisplayTutorial(isSidebar, profile, settings)) {
+      openSidebarPanel(uiConstants.PANEL_HELP);
+    }
+  }, [isSidebar, profile, openSidebarPanel, settings]);
 
-  session.load().then(profile => {
-    self.auth = authStateFromProfile(profile);
-  });
+  // Show a deprecation warning if current browser is IE11
+  useEffect(() => {
+    if (isIE11()) {
+      toastMessenger.notice(
+        'Hypothesis is ending support for this browser (Internet Explorer 11) on July 1, 2020.',
+        {
+          autoDismiss: false,
+          moreInfoURL:
+            'https://web.hypothes.is/help/which-browsers-are-supported-by-hypothesis/',
+        }
+      );
+    }
+  }, [toastMessenger]);
 
-  /** Scroll to the view to the element matching the given selector */
-  function scrollToView(selector) {
-    // Add a timeout so that if the element has just been shown (eg. via ngIf)
-    // it is added to the DOM before we try to locate and scroll to it.
-    scopeTimeout(
-      $scope,
-      function() {
-        scrollIntoView($document[0].querySelector(selector));
-      },
-      0
-    );
-  }
-
-  /**
-   * Start the login flow. This will present the user with the login dialog.
-   *
-   * @return {Promise<void>} - A Promise that resolves when the login flow
-   *   completes. For non-OAuth logins, always resolves immediately.
-   */
-  this.login = function() {
+  const login = async () => {
     if (serviceConfig(settings)) {
       // Let the host page handle the login request
       bridge.call(bridgeEvents.LOGIN_REQUESTED);
-      return Promise.resolve();
+      return;
     }
 
-    return auth
-      .login()
-      .then(() => {
-        store.clearGroups();
-        session.reload();
-      })
-      .catch(err => {
-        flash.error(err.message);
-      });
+    try {
+      await auth.login();
+
+      closeSidebarPanel(uiConstants.PANEL_LOGIN_PROMPT);
+      clearGroups();
+      session.reload();
+    } catch (err) {
+      toastMessenger.error(err.message);
+    }
   };
 
-  this.signUp = function() {
-    analytics.track(analytics.events.SIGN_UP_REQUESTED);
-
+  const signUp = () => {
     if (serviceConfig(settings)) {
       // Let the host page handle the signup request
       bridge.call(bridgeEvents.SIGNUP_REQUESTED);
       return;
     }
-    $window.open(serviceUrl('signup'));
+    window.open(serviceUrl('signup'));
   };
 
-  // Display the dialog for sharing the current page
-  this.share = function() {
-    this.shareDialog.visible = true;
-    scrollToView('share-dialog');
-  };
-
-  this.showHelpPanel = function() {
-    const service = serviceConfig(settings) || {};
-    if (service.onHelpRequestProvided) {
-      // Let the host page handle the help request.
-      bridge.call(bridgeEvents.HELP_REQUESTED);
-      return;
-    }
-
-    this.helpPanel.visible = true;
-  };
-
-  // Prompt to discard any unsaved drafts.
-  const promptToLogout = function() {
+  const promptToLogout = () => {
     // TODO - Replace this with a UI which doesn't look terrible.
     let text = '';
-    if (drafts.count() === 1) {
+    const drafts = countDrafts();
+    if (drafts === 1) {
       text =
         'You have an unsaved annotation.\n' +
         'Do you really want to discard this draft?';
-    } else if (drafts.count() > 1) {
+    } else if (drafts > 1) {
       text =
         'You have ' +
-        drafts.count() +
+        drafts +
         ' unsaved annotations.\n' +
         'Do you really want to discard these drafts?';
     }
-    return drafts.count() === 0 || $window.confirm(text);
+    return drafts === 0 || window.confirm(text);
   };
 
-  // Log the user out.
-  this.logout = function() {
+  const logout = () => {
     if (!promptToLogout()) {
       return;
     }
-    store.clearGroups();
-    drafts.unsaved().forEach(function(draft) {
-      $rootScope.$emit(events.ANNOTATION_DELETED, draft);
-    });
-    drafts.discard();
+    clearGroups();
+    removeAnnotations(unsavedAnnotations());
+    discardAllDrafts();
 
     if (serviceConfig(settings)) {
-      // Let the host page handle the signup request
       bridge.call(bridgeEvents.LOGOUT_REQUESTED);
       return;
     }
@@ -185,21 +164,56 @@ function HypothesisAppController(
     session.logout();
   };
 
-  this.search = {
-    query: function() {
-      return store.getState().filterQuery;
-    },
-    update: function(query) {
-      store.setFilterQuery(query);
-    },
-  };
+  return (
+    <div
+      className="hypothesis-app js-thread-list-scroll-root"
+      style={backgroundStyle}
+    >
+      <TopBar
+        auth={authState}
+        onLogin={login}
+        onSignUp={signUp}
+        onLogout={logout}
+        isSidebar={isSidebar}
+      />
+      <div className="hypothesis-app__content">
+        <ToastMessages />
+        <HelpPanel auth={authState} />
+        <ShareAnnotationsPanel />
 
-  this.countPendingUpdates = streamer.countPendingUpdates;
-  this.applyPendingUpdates = streamer.applyPendingUpdates;
+        {route && (
+          <main>
+            {route === 'annotation' && (
+              <AnnotationViewerContent onLogin={login} />
+            )}
+            {route === 'stream' && <StreamContent />}
+            {route === 'sidebar' && (
+              <SidebarContent onLogin={login} onSignUp={signUp} />
+            )}
+          </main>
+        )}
+      </div>
+    </div>
+  );
 }
 
-module.exports = {
-  controller: HypothesisAppController,
-  controllerAs: 'vm',
-  template: require('../templates/hypothesis-app.html'),
+HypothesisApp.propTypes = {
+  // Injected.
+  auth: propTypes.object,
+  bridge: propTypes.object,
+  serviceUrl: propTypes.func,
+  settings: propTypes.object,
+  session: propTypes.object,
+  toastMessenger: propTypes.object,
 };
+
+HypothesisApp.injectedProps = [
+  'auth',
+  'bridge',
+  'serviceUrl',
+  'session',
+  'settings',
+  'toastMessenger',
+];
+
+export default withServices(HypothesisApp);
