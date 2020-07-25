@@ -105,6 +105,9 @@ module.exports = class Sidebar extends Host
       if @onHelpRequest
         @onHelpRequest()
     )
+    @crossframe.on('useTransparentToolbarButtons', =>
+      @toolbar.transparentButtons = true
+    )
     # Return this for chaining
     this
 

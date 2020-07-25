@@ -205,6 +205,10 @@ export default function FrameSync(annotationsService, bridge, store, settings) {
         metadata: info.metadata,
         uri: info.uri,
       });
+
+      if (settings.transparentToolbarButtons) {
+        channel.call('useTransparentToolbarButtons');
+      }
     });
   }
 
