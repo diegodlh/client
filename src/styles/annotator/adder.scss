@@ -84,6 +84,14 @@ $adder-transition-duration: 80ms;
   bottom: -5px;
 }
 
+.annotator-adder--arrow-down.has-footer:before {
+    background: var.$grey-semi;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+    border-right: 1px solid rgba(255, 255, 255, 0.5);
+    bottom: -4px;
+    z-index: -1;
+}
+
 .annotator-adder--arrow-up.is-active {
   animation-name: adder-fade-in, adder-pop-down;
 }
