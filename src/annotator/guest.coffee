@@ -511,3 +511,4 @@ module.exports = class Guest extends Delegator
 
   setAnnotationGroup: (groupName) ->
     @groupName = groupName
+    this._onSelection(@selectedRanges[0])
