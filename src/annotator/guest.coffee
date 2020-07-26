@@ -56,7 +56,6 @@ module.exports = class Guest extends Delegator
   anchors: null
   visibleHighlights: false
   frameIdentifier: null
-  groupName: null
 
   html:
     adder: '<hypothesis-adder></hypothesis-adder>'
@@ -434,7 +433,6 @@ module.exports = class Guest extends Delegator
 
     {left, top, arrowDirection} = this.adderCtrl.target(focusRect, isBackwards)
     this.adderCtrl.annotationsForSelection = annotationsForSelection()
-    this.adderCtrl.groupName = @groupName
     this.adderCtrl.showAt(left, top, arrowDirection)
 
   _onClearSelection: () ->
@@ -510,5 +508,4 @@ module.exports = class Guest extends Delegator
     @toolbar?.highlightsVisible = shouldShowHighlights
 
   setAnnotationGroup: (groupName) ->
-    @groupName = groupName
-    this._onSelection(@selectedRanges[0])
+    this.adderCtrl.setAnnotationGroup(groupName)
