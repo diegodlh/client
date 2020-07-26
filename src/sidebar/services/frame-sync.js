@@ -256,7 +256,7 @@ export default function FrameSync(annotationsService, bridge, store, settings) {
    * Provide the frame with the name of the currently selected/focused annotation
    * group.
    *
-   * @param {{groupName: string, isPublic: boolean}}
+   * @param {{groupName: string|null, isPublic: boolean}}
    */
   this.setAnnotationGroup = function ({groupName: groupName, isPublic: isPublic}) {
     const showFooter =
