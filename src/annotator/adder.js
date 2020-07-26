@@ -107,6 +107,7 @@ export class Adder {
     this._onAnnotate = options.onAnnotate;
     this._onHighlight = options.onHighlight;
     this._onShowAnnotations = options.onShowAnnotations;
+    this._groupName = null;
 
     /**
      * Annotation objects associated with the current selection. If non-empty,
@@ -130,6 +131,12 @@ export class Adder {
   /** Hide the adder */
   hide() {
     this._isVisible = false;
+    this._render();
+  }
+
+  /** Update the currently focused group name **/
+  setAnnotationGroup(groupName) {
+    this._groupName = groupName;
     this._render();
   }
 
@@ -244,7 +251,7 @@ export class Adder {
         arrowDirection={this._arrowDirection}
         onCommand={handleCommand}
         annotationCount={this.annotationsForSelection.length}
-        groupName={this.groupName}
+        groupName={this._groupName}
       />,
       this._shadowRoot
     );

@@ -102,6 +102,7 @@ export default function AdderToolbar({
         'annotator-adder--arrow-down': arrowDirection === 'down',
         'annotator-adder--arrow-up': arrowDirection === 'up',
         'is-active': isVisible,
+        'has-footer': groupName,
       })}
       style={{ visibility: isVisible ? 'visible' : 'hidden' }}
     >
