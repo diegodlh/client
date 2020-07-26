@@ -26,6 +26,7 @@ module.exports = class PDF extends Plugin
 
   destroy: ->
     @pdfViewer.viewer.classList.remove('has-transparent-text-layer')
+    @pdfViewer.viewer.classList.remove('use-white-overlay')
     @observer.disconnect()
 
   uri: ->
@@ -33,6 +34,9 @@ module.exports = class PDF extends Plugin
 
   getMetadata: ->
     @pdfMetadata.getMetadata()
+
+  useWhiteOverlay: ->
+    @pdfViewer.viewer.classList.add('use-white-overlay')
 
   # This method (re-)anchors annotations when pages are rendered and destroyed.
   _update: ->

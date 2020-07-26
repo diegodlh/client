@@ -189,6 +189,7 @@ async function fetchConfigExtension(appConfig) {
     return new Promise(resolve => {
       chrome.storage.sync.get(
         {
+          usePdfWhiteOverlay: false,
         },
         items => resolve(items)
       );

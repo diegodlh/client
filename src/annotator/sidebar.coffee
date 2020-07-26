@@ -105,6 +105,9 @@ module.exports = class Sidebar extends Host
       if @onHelpRequest
         @onHelpRequest()
     )
+    @crossframe.on('usePdfWhiteOverlay', =>
+      @plugins.PDF?.useWhiteOverlay()
+    )
     # Return this for chaining
     this
 
