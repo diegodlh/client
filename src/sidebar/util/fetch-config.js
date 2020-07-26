@@ -191,7 +191,7 @@ async function fetchConfigExtension(appConfig) {
         {
           enableExperimentalNewNoteButton: false,
           openSidebar: false,
-          adderToolbarFooter: false,
+          adderToolbarFooter: 'never',
           transparentToolbarButtons: false,
           usePdfWhiteOverlay: false,
         },
