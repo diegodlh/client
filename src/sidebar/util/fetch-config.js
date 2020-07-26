@@ -189,7 +189,7 @@ async function fetchConfigExtension(appConfig) {
     return new Promise(resolve => {
       chrome.storage.sync.get(
         {
-          adderToolbarFooter: false,
+          adderToolbarFooter: 'never',
         },
         items => resolve(items)
       );

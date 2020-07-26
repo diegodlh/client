@@ -256,13 +256,12 @@ export default function FrameSync(annotationsService, bridge, store, settings) {
    * Provide the frame with the name of the currently selected/focused annotation
    * group.
    *
-   * @param {string} groupName
+   * @param {{groupName: string, isPublic: boolean}}
    */
-  this.setAnnotationGroup = function (groupName) {
-    bridge.call('setAnnotationGroup',
-      settings.adderToolbarFooter
-      ? groupName
-      : null
-    );
+  this.setAnnotationGroup = function ({groupName: groupName, isPublic: isPublic}) {
+    const showFooter =
+      settings.adderToolbarFooter === 'always' ||
+      (settings.adderToolbarFooter === 'exceptPublic' && !isPublic)
+    bridge.call('setAnnotationGroup', showFooter ? groupName : null);
   }
 }

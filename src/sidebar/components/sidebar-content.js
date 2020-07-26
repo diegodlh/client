@@ -109,7 +109,10 @@ function SidebarContent({
   // When an annotation group is focused, send its name to the annotator
   // component for display in the adder toolbar footer.
   useEffect(() => {
-    frameSync.setAnnotationGroup(focusedGroup ? focusedGroup.name : null);
+    frameSync.setAnnotationGroup({
+      groupName: focusedGroup ? focusedGroup.name : null,
+      isPublic: focusedGroup?.id === '__world__'
+    });
   }, [focusedGroup])
 
   // When a `linkedAnnotationAnchorTag` becomes available, scroll to it
