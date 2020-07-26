@@ -108,6 +108,9 @@ module.exports = class Sidebar extends Host
     @crossframe.on('useTransparentToolbarButtons', =>
       @toolbar.transparentButtons = true
     )
+    @crossframe.on('usePdfWhiteOverlay', =>
+      @plugins.PDF?.useWhiteOverlay()
+    )
     # Return this for chaining
     this
 

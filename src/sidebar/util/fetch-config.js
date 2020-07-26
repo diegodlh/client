@@ -193,6 +193,7 @@ async function fetchConfigExtension(appConfig) {
           openSidebar: false,
           adderToolbarFooter: false,
           transparentToolbarButtons: false,
+          usePdfWhiteOverlay: false,
         },
         items => resolve(items)
       );

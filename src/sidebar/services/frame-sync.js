@@ -213,6 +213,11 @@ export default function FrameSync(annotationsService, bridge, store, settings) {
       if (settings.transparentToolbarButtons) {
         channel.call('useTransparentToolbarButtons');
       }
+
+      if (settings.usePdfWhiteOverlay) {
+        channel.call('usePdfWhiteOverlay');
+      }
+
     });
   }
 
