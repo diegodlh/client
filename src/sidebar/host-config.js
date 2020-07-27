@@ -43,6 +43,10 @@ export default function hostPageConfig(window) {
     'services',
     'branding',
 
+    // Unofficial client config params documented at
+    // https://github.com/diegodlh/unofficial-hypothesis-client#client-configuration
+    'adderToolbarFooter',
+
     // New note button override.
     // This should be removed once new note button is enabled for everybody.
     'enableExperimentalNewNoteButton',

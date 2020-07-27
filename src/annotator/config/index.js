@@ -9,6 +9,7 @@ import { toBoolean } from '../../shared/type-coercions';
 export default function configFrom(window_) {
   const settings = settingsFrom(window_);
   return {
+    adderToolbarFooter: settings.hostPageSetting('adderToolbarFooter'),
     annotations: settings.annotations,
     // URL where client assets are served from. Used when injecting the client
     // into child iframes.
