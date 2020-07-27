@@ -45,7 +45,7 @@ export default function hostPageConfig(window) {
 
     // Unofficial client config params documented at
     // https://github.com/diegodlh/unofficial-hypothesis-client#client-configuration
-
+    'transparentToolbarButtons',
 
     // New note button override.
     // This should be removed once new note button is enabled for everybody.
