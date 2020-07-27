@@ -43,6 +43,7 @@ export default function configFrom(window_) {
     subFrameIdentifier: settings.hostPageSetting('subFrameIdentifier', {
       allowInBrowserExt: true,
     }),
+    transparentToolbarButtons: settings.hostPageSetting('transparentToolbarButtons'),
     externalContainerSelector: settings.hostPageSetting(
       'externalContainerSelector'
     ),
