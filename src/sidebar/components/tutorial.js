@@ -32,6 +32,7 @@ TutorialInstruction.propTypes = {
  */
 function Tutorial({ settings }) {
   const canCreatePrivateGroups = !isThirdPartyService(settings);
+  const isFirefoxExtension = settings.appType === 'firefox-extension';
   return (
     <ol className="tutorial__list">
       <li className="tutorial__item">
@@ -70,6 +71,21 @@ function Tutorial({ settings }) {
         To reply to an annotation, select the{' '}
         <TutorialInstruction iconName="reply" commandName="Reply" /> button.
       </li>
+      {isFirefoxExtension && (
+        <li className="tutorial__item">
+          To configure the extension, right-click the extension button and 
+          click <em>Settings</em>, or click {' '}
+          <a
+            href="#"
+            onClick={(e) => {
+              chrome.runtime.sendMessage({type: 'openOptionsPage'});
+              e.preventDefault();
+            }}
+          >
+            here
+          </a>.
+        </li>
+      )}
     </ol>
   );
 }
