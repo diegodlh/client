@@ -45,5 +45,6 @@ export default function configFrom(window_) {
     externalContainerSelector: settings.hostPageSetting(
       'externalContainerSelector'
     ),
+    usePdfWhiteOverlay: settings.hostPageSetting('usePdfWhiteOverlay'),
   };
 }
