@@ -47,6 +47,7 @@ export default function hostPageConfig(window) {
     // https://github.com/diegodlh/unofficial-hypothesis-client#client-configuration
     'adderToolbarFooter',
     'transparentToolbarButtons',
+    'usePdfWhiteOverlay',
 
     // New note button override.
     // This should be removed once new note button is enabled for everybody.
